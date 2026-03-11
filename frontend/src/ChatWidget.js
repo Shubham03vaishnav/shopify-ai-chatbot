@@ -23,7 +23,8 @@ function ProductCard({ product }) {
         <div style={{ fontSize: 13, color: "#6366f1", fontWeight: 700, marginBottom: 8 }}>
           ₹{product.price}
         </div>
-        
+
+        {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
           href={product.url}
           target="_blank"
           rel="noreferrer"
