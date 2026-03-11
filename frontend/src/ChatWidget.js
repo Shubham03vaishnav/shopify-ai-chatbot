@@ -37,6 +37,12 @@ export default function ChatWidget() {
     bottomRef.current?.scrollIntoView({behavior:"smooth"});
   }, [messages]);
 
+  const toggleOpen = () => {
+    const newOpen = !open;
+    setOpen(newOpen);
+    window.parent.postMessage(newOpen ? "chatbot-open" : "chatbot-closed", "*");
+  };
+
   const sendMessage = async () => {
     if (!input.trim()) return;
     const userMsg = input.trim();
@@ -64,12 +70,12 @@ export default function ChatWidget() {
   };
 
   return (
-    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,fontFamily:"sans-serif"}}>
+    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,fontFamily:"sans-serif",display:"flex",flexDirection:"column",alignItems:"flex-end"}}>
       {open && (
-        <div style={{width:300,height:460,background:"#f8fafc",borderRadius:14,boxShadow:"0 4px 24px rgba(0,0,0,0.12)",display:"flex",flexDirection:"column",overflow:"hidden",marginBottom:10,border:"1px solid #e2e8f0"}}>
+        <div style={{width:300,height:460,background:"#f8fafc",borderRadius:14,boxShadow:"0 4px 24px rgba(0,0,0,0.12)",display:"flex",flexDirection:"column",overflow:"hidden",marginBottom:12,border:"1px solid #e2e8f0"}}>
           <div style={{background:"#6366f1",color:"#fff",padding:"12px 14px",fontWeight:700,fontSize:13,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span>Store Assistant</span>
-            <span onClick={() => setOpen(false)} style={{cursor:"pointer",opacity:0.8,fontSize:16}}>X</span>
+            <span onClick={toggleOpen} style={{cursor:"pointer",opacity:0.8,fontSize:16}}>X</span>
           </div>
           <div style={{flex:1,overflowY:"auto",padding:12,display:"flex",flexDirection:"column",gap:8}}>
             {messages.map((m, i) => (
@@ -108,7 +114,7 @@ export default function ChatWidget() {
           </div>
         </div>
       )}
-      <button onClick={() => setOpen(o => !o)} style={{width:50,height:50,borderRadius:"50%",background:"#6366f1",border:"none",color:"#fff",fontSize:22,cursor:"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.45)",display:"block",marginLeft:"auto"}}>
+      <button onClick={toggleOpen} style={{width:50,height:50,borderRadius:"50%",background:"#6366f1",border:"none",color:"#fff",fontSize:20,cursor:"pointer",boxShadow:"0 4px 14px rgba(99,102,241,0.45)"}}>
         {open ? "X" : "C"}
       </button>
     </div>
