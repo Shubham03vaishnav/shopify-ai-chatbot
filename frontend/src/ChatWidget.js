@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/anchor-is-valid */
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
@@ -9,13 +10,6 @@ function ProductCard({ product }) {
       background: "#fff", borderRadius: 12, overflow: "hidden",
       boxShadow: "0 2px 8px rgba(0,0,0,0.1)", marginBottom: 8, width: "100%"
     }}>
-      {product.image && (
-        <img
-          src={product.image}
-          alt={product.title}
-          style={{ width: "100%", height: 140, objectFit: "cover" }}
-        />
-      )}
       <div style={{ padding: "10px 12px" }}>
         <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b", marginBottom: 4 }}>
           {product.title}
@@ -23,8 +17,7 @@ function ProductCard({ product }) {
         <div style={{ fontSize: 13, color: "#6366f1", fontWeight: 700, marginBottom: 8 }}>
           ₹{product.price}
         </div>
-
-        /* eslint-disable-next-line jsx-a11y/anchor-is-valid */
+        
           href={product.url}
           target="_blank"
           rel="noreferrer"
@@ -34,7 +27,7 @@ function ProductCard({ product }) {
             padding: "7px 0", borderRadius: 8,
             fontSize: 12, fontWeight: 700, textDecoration: "none"
           }}
-        <a>
+        >
           Buy Now →
         </a>
       </div>
@@ -226,3 +219,4 @@ export default function ChatWidget() {
     </div>
   );
 }
+
