@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
-const API_URL = "shopify-ai-chatbot-production-0c5c.up.railway.app";
+const API_URL = "https://shopify-ai-chatbot-production-0c5c.up.railway.app";
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
