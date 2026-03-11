@@ -24,7 +24,7 @@ function ProductCard({ product }) {
           ₹{product.price}
         </div>
 
-        {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
+        /* eslint-disable-next-line jsx-a11y/anchor-is-valid */
           href={product.url}
           target="_blank"
           rel="noreferrer"
