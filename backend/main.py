@@ -1,24 +1,16 @@
-import google.generativeai as genai
-from scraper import store_website_data, search_knowledge, get_trained_urls, load_knowledge, save_knowledge
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Optional
 import requests
 import os
 import re
 from dotenv import load_dotenv
+import google.generativeai as genai
+from scraper import store_website_data, search_knowledge, get_trained_urls, load_knowledge, save_knowledge
 
 load_dotenv()
-
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
-    gemini_model = genai.GenerativeModel("gemini-1.0-pro")
-else:
-    gemini_model = None
 
 app = FastAPI()
 
@@ -32,6 +24,16 @@ app.add_middleware(
 
 SHOP = os.getenv("SHOPIFY_SHOP")
 TOKEN = os.getenv("SHOPIFY_TOKEN")
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+
+if GEMINI_KEY:
+    genai.configure(api_key=GEMINI_KEY)
+    try:
+        gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+    except Exception:
+        gemini_model = None
+else:
+    gemini_model = None
 
 class ChatRequest(BaseModel):
     message: str
@@ -50,11 +52,11 @@ PRODUCT_RE = re.compile(r"\b(product|products|buy|item|items|shop|sell|selling|c
 PRICE_RE = re.compile(r"\b(price|prices|cost|how much|rate|rates|charge|charges|affordable|cheap|expensive)\b", re.IGNORECASE)
 ORDER_RE = re.compile(r"\b(order|orders|track|tracking|delivery|shipping|dispatch|shipped|delivered|status|where is my)\b", re.IGNORECASE)
 COLOR_RE = re.compile(r"\b(black|blue|green|grey|gray|white|red|yellow|brown|coffee|navy|lavender|marron|pink|sage)\b", re.IGNORECASE)
-SIZE_RE = re.compile(r"\b(small|medium|large|xl|xxl|xs|size|sizing|fit|fitting)\b", re.IGNORECASE)
+SIZE_RE = re.compile(r"\b(small|medium|large|xl|xxl|xs|size|sizing)\b", re.IGNORECASE)
 DISCOUNT_RE = re.compile(r"\b(discount|offer|coupon|promo|deal|sale|off|code)\b", re.IGNORECASE)
 RETURN_RE = re.compile(r"\b(return|refund|exchange|replace|replacement|money back)\b", re.IGNORECASE)
 THANKS_RE = re.compile(r"\b(thank|thanks|thankyou|thank you|thx|ty)\b", re.IGNORECASE)
-HELP_RE = re.compile(r"\b(help|support|assist|assistance|question|query)\b", re.IGNORECASE)
+HELP_RE = re.compile(r"\b(help|assist|assistance|question|query)\b", re.IGNORECASE)
 YES_RE = re.compile(r"\b(yes|yeah|yep|sure|ok|okay|show|please|yup|haan|ha)\b", re.IGNORECASE)
 NO_RE = re.compile(r"\b(no|nope|nahi|nah|not now|later)\b", re.IGNORECASE)
 BYE_RE = re.compile(r"\b(bye|goodbye|see you|seeyou|cya|take care|tata|alvida)\b", re.IGNORECASE)
@@ -67,7 +69,7 @@ NO_ONLY_RE = re.compile(r"^(no|nope|nahi|nah|na|noo|nooo|never|not really|not no
 LOVE_RE = re.compile(r"\b(love|loving|i love|loved|like|liked|i like|fantastic|brilliant|outstanding)\b", re.IGNORECASE)
 BAD_RE = re.compile(r"\b(bad|worst|terrible|horrible|pathetic|useless|disappointed|disappointing|not good|not happy)\b", re.IGNORECASE)
 WHO_RE = re.compile(r"\b(who are you|what are you|are you a bot|are you human|are you ai|are you robot|who made you|who created you)\b", re.IGNORECASE)
-CONTACT_RE = re.compile(r"\b(contact|email|phone|call|reach|whatsapp|support|customer care|helpline)\b", re.IGNORECASE)
+CONTACT_RE = re.compile(r"\b(contact|phone|call|reach|whatsapp|customer care|helpline)\b", re.IGNORECASE)
 
 def get_shopify_products(color=None):
     url = f"https://{SHOP}/admin/api/2024-01/products.json?limit=10"
@@ -112,28 +114,24 @@ def get_order_by_email(email):
         print(f"Order API error: {e}")
         return None
 
+def get_clean_answer(chunks, query):
+    """Extract clean sentences from chunks based on query keywords"""
+    all_text = " ".join(chunks)
+    sentences = [s.strip() for s in all_text.split(".") if len(s.strip()) > 60]
+    keywords = query.lower().split()
+    scored = []
+    for s in sentences:
+        score = sum(1 for k in keywords if k in s.lower())
+        scored.append((score, s))
+    scored.sort(reverse=True)
+    best = [s for score, s in scored[:3] if score > 0 and len(s) > 60 and not s[-1].isdigit() and s[0].isupper()]
+    if best:
+        return ". ".join(best) + "."
+    return None
+
 @app.get("/")
 def health_check():
     return {"status": "Chatbot API is running"}
-
-@app.get("/list-models")
-def list_models():
-    try:
-        models = genai.list_models()
-        available = [m.name for m in models if "generateContent" in m.supported_generation_methods]
-        return {"models": available}
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/test-gemini")
-def test_gemini():
-    if not gemini_model:
-        return {"status": "Gemini not initialized", "key_exists": bool(GEMINI_KEY)}
-    try:
-        response = gemini_model.generate_content("Say hello in one sentence")
-        return {"status": "working", "response": response.text}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 @app.get("/admin")
 def admin_panel():
@@ -156,29 +154,43 @@ def delete_url(req: ScrapeRequest):
     save_knowledge(knowledge)
     return {"success": True, "message": f"Removed {req.url}"}
 
+@app.get("/list-models")
+def list_models():
+    try:
+        models = genai.list_models()
+        available = [m.name for m in models if "generateContent" in m.supported_generation_methods]
+        return {"models": available}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/test-gemini")
+def test_gemini():
+    if not gemini_model:
+        return {"status": "Gemini not initialized", "key_exists": bool(GEMINI_KEY)}
+    try:
+        response = gemini_model.generate_content("Say hello in one sentence")
+        return {"status": "working", "response": response.text}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/chatbot.js")
+def serve_chatbot():
+    return FileResponse("chatbot.js", media_type="application/javascript")
+
 @app.post("/scrape")
 def scrape(req: ScrapeRequest):
-    """Train chatbot on a website URL"""
     result = store_website_data(req.url)
     return result
 
 @app.post("/ask")
 def ask(req: RAGRequest):
-    """Answer question using scraped website data + Gemini"""
     question = req.question.strip()
-
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
-
-    # Search relevant chunks
     chunks = search_knowledge(question)
-
     if not chunks:
-        return {"answer": "I don't have enough information to answer that. Please train me on a website first by using the /scrape endpoint."}
-
-    # Build context from chunks
+        return {"answer": "I don't have enough information to answer that. Please train me on a website first."}
     context = "\n\n".join(chunks)
-
     if gemini_model:
         try:
             prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
@@ -195,25 +207,10 @@ Answer:"""
             return {"answer": response.text}
         except Exception as e:
             print(f"Gemini error: {e}")
-
-    # Free mode — extract clean sentences
-    all_text = " ".join(chunks)
-    sentences = [s.strip() for s in all_text.split(".") if len(s.strip()) > 60]
-    keywords = question.lower().split()
-    scored = []
-    for s in sentences:
-        score = sum(1 for k in keywords if k in s.lower())
-        scored.append((score, s))
-    scored.sort(reverse=True)
-    best = [s for score, s in scored[:3] if score > 0]
-    if best:
-        clean = ". ".join(best) + "."
+    clean = get_clean_answer(chunks, question)
+    if clean:
         return {"answer": clean}
     return {"answer": "I found some information but could not summarize it clearly. Please visit our website for more details."}
-
-@app.get("/chatbot.js")
-def serve_chatbot():
-    return FileResponse("chatbot.js", media_type="application/javascript")
 
 @app.post("/chat")
 def chat(req: ChatRequest):
@@ -283,6 +280,14 @@ def chat(req: ChatRequest):
     # Who are you
     if WHO_RE.search(msg):
         return {"type":"text","reply":"I am your Store Assistant! I am an AI chatbot here to help you shop.\n\nI can help you with products, prices, orders and more!"}
+
+    # Love / Like — check before PRODUCT_RE
+    if LOVE_RE.search(msg) and not PRODUCT_RE.search(msg):
+        return {"type":"text","reply":"That is so sweet! We love our customers too!\n\nIs there anything else I can help you with today?"}
+
+    # Nice / Great — check before PRODUCT_RE
+    if NICE_RE.search(msg) and not PRODUCT_RE.search(msg):
+        return {"type":"text","reply":"Thank you so much! That means a lot to us.\n\nIs there anything else I can help you with?"}
 
     # Color + product search
     color_match = COLOR_RE.search(msg)
@@ -366,17 +371,9 @@ def chat(req: ChatRequest):
     if CONTACT_RE.search(msg):
         return {"type":"text","reply":"You can reach us here:\n\nEmail: support@ai-chatbot-lab.com\nWhatsApp: +91 XXXXXXXXXX\nTiming: Mon-Sat, 10am to 6pm\n\nWe will get back to you within 24 hours!"}
 
-    # Love / Like
-    if LOVE_RE.search(msg):
-        return {"type":"text","reply":"That is so sweet! We love our customers too!\n\nIs there anything else I can help you with today?"}
-
     # Bad / Negative feedback
     if BAD_RE.search(msg):
         return {"type":"text","reply":"We are really sorry to hear that!\n\nPlease contact us at support@ai-chatbot-lab.com and we will make it right for you."}
-
-    # Nice / Great
-    if NICE_RE.search(msg):
-        return {"type":"text","reply":"Thank you so much! That means a lot to us.\n\nIs there anything else I can help you with?"}
 
     # OK
     if OK_RE.search(msg):
@@ -401,30 +398,22 @@ def chat(req: ChatRequest):
             try:
                 context = "\n\n".join(chunks)
                 prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
-    If the answer is not in the context, say "I don't have that information right now."
-    Keep your answer short, friendly and helpful.
+If the answer is not in the context, say "I don't have that information right now."
+Keep your answer short, friendly and helpful.
 
-    Context:
-    {context}
+Context:
+{context}
 
-    Customer Question: {msg}
+Customer Question: {msg}
 
-    Answer:"""
+Answer:"""
                 response = gemini_model.generate_content(prompt)
                 return {"type":"text","reply":response.text}
             except Exception as e:
                 print(f"Gemini error: {e}")
-        # Free mode — extract clean sentences from chunk
-        all_text = " ".join(chunks)
-        sentences = [s.strip() for s in all_text.split(".") if len(s.strip()) > 60]
-        keywords = msg.lower().split()
-        scored = []
-        for s in sentences:
-            score = sum(1 for k in keywords if k in s.lower())
-            scored.append((score, s))
-        scored.sort(reverse=True)
-        best = [s for score, s in scored[:3] if score > 0]
-        if best:
-            clean = ". ".join(best) + "."
+        clean = get_clean_answer(chunks, msg)
+        if clean:
             return {"type":"text","reply":clean}
-        return {"type":"text","reply":"I found some information but could not summarize it clearly. Please visit our website for more details."}
+
+    # Final Fallback
+    return {"type":"text","reply":"I am not sure I understand.\n\nYou can ask me about:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns"}
