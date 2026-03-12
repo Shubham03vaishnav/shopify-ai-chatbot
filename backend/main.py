@@ -8,6 +8,7 @@ import os
 import re
 from dotenv import load_dotenv
 import google.generativeai as genai
+from groq import Groq
 from scraper import store_website_data, search_knowledge, get_trained_urls, load_knowledge, save_knowledge
 
 load_dotenv()
@@ -25,6 +26,7 @@ app.add_middleware(
 SHOP = os.getenv("SHOPIFY_SHOP")
 TOKEN = os.getenv("SHOPIFY_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_KEY = os.getenv("GROQ_API_KEY")
 
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
@@ -34,6 +36,11 @@ if GEMINI_KEY:
         gemini_model = None
 else:
     gemini_model = None
+
+if GROQ_KEY:
+    groq_client = Groq(api_key=GROQ_KEY)
+else:
+    groq_client = None
 
 class ChatRequest(BaseModel):
     message: str
@@ -129,6 +136,41 @@ def get_clean_answer(chunks, query):
         return ". ".join(best) + "."
     return None
 
+def get_ai_answer(context, question):
+    """Try Groq first, then Gemini, then fallback to clean text"""
+    prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
+If the answer is not in the context, say "I don't have that information right now."
+Keep your answer short, friendly and helpful — maximum 3 sentences.
+
+Context:
+{context}
+
+Customer Question: {question}
+
+Answer:"""
+
+    # Try Groq first
+    if groq_client:
+        try:
+            response = groq_client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"Groq error: {e}")
+
+    # Try Gemini as backup
+    if gemini_model:
+        try:
+            response = gemini_model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"Gemini error: {e}")
+
+    return None
+
 @app.get("/")
 def health_check():
     return {"status": "Chatbot API is running"}
@@ -191,22 +233,9 @@ def ask(req: RAGRequest):
     if not chunks:
         return {"answer": "I don't have enough information to answer that. Please train me on a website first."}
     context = "\n\n".join(chunks)
-    if gemini_model:
-        try:
-            prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
-If the answer is not in the context, say "I don't have that information right now."
-Keep your answer short, friendly and helpful.
-
-Context:
-{context}
-
-Customer Question: {question}
-
-Answer:"""
-            response = gemini_model.generate_content(prompt)
-            return {"answer": response.text}
-        except Exception as e:
-            print(f"Gemini error: {e}")
+    ai_answer = get_ai_answer(context, question)
+    if ai_answer:
+        return {"answer": ai_answer}
     clean = get_clean_answer(chunks, question)
     if clean:
         return {"answer": clean}
@@ -394,26 +423,10 @@ def chat(req: ChatRequest):
     # RAG Fallback — search scraped website data
     chunks = search_knowledge(msg)
     if chunks:
-        if gemini_model:
-            try:
-                context = "\n\n".join(chunks)
-                prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
-If the answer is not in the context, say "I don't have that information right now."
-Keep your answer short, friendly and helpful.
-
-Context:
-{context}
-
-Customer Question: {msg}
-
-Answer:"""
-                response = gemini_model.generate_content(prompt)
-                return {"type":"text","reply":response.text}
-            except Exception as e:
-                print(f"Gemini error: {e}")
+        context = "\n\n".join(chunks)
+        ai_answer = get_ai_answer(context, msg)
+        if ai_answer:
+            return {"type":"text","reply":ai_answer}
         clean = get_clean_answer(chunks, msg)
         if clean:
             return {"type":"text","reply":clean}
-
-    # Final Fallback
-    return {"type":"text","reply":"I am not sure I understand.\n\nYou can ask me about:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns"}
