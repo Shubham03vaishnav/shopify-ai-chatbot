@@ -17,6 +17,10 @@ def scrape_website(url):
             tag.decompose()
         text = soup.get_text(separator=" ", strip=True)
         text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r'\[\s*\d+\s*\]', '', text)  # Remove [19] [14] etc
+        text = re.sub(r'\[\s*update\s*\]', '', text)  # Remove [update]
+        text = re.sub(r'\[\s*edit\s*\]', '', text)  # Remove [edit]
+        text = re.sub(r'\s+', ' ', text).strip()
         return text
     except Exception as e:
         print(f"Scraping error: {e}")
