@@ -195,9 +195,12 @@ Answer:"""
             return {"answer": response.text}
         except Exception as e:
             print(f"Gemini error: {e}")
-            return {"answer": chunks[0]}
-    else:
-        return {"answer": chunks[0]}
+
+    # Free mode — extract clean sentences
+    raw = chunks[0]
+    sentences = [s.strip() for s in raw.replace("  ", " ").split(".") if len(s.strip()) > 40]
+    clean = ". ".join(sentences[:3]) + "."
+    return {"answer": clean}
 
 @app.get("/chatbot.js")
 def serve_chatbot():
@@ -384,10 +387,11 @@ def chat(req: ChatRequest):
 
     # RAG Fallback — search scraped website data
     chunks = search_knowledge(msg)
-    if chunks and gemini_model:
-        try:
-            context = "\n\n".join(chunks)
-            prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
+    if chunks:
+        if gemini_model:
+            try:
+                context = "\n\n".join(chunks)
+                prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
     If the answer is not in the context, say "I don't have that information right now."
     Keep your answer short, friendly and helpful.
 
@@ -397,9 +401,14 @@ def chat(req: ChatRequest):
     Customer Question: {msg}
 
     Answer:"""
-            response = gemini_model.generate_content(prompt)
-            return {"type":"text","reply":response.text}
-        except Exception as e:
-            print(f"Gemini error: {e}")
+                response = gemini_model.generate_content(prompt)
+                return {"type":"text","reply":response.text}
+            except Exception as e:
+                print(f"Gemini error: {e}")
+        # Free mode — extract clean sentences from chunk
+        raw = chunks[0]
+        sentences = [s.strip() for s in raw.replace("  ", " ").split(".") if len(s.strip()) > 40]
+        clean = ". ".join(sentences[:3]) + "."
+        return {"type":"text","reply":clean}
 
     return {"type":"text","reply":"I am not sure I understand.\n\nYou can ask me about:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns"}
