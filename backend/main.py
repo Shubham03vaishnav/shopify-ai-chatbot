@@ -29,7 +29,7 @@ class ChatRequest(BaseModel):
 
 # ✅ Regex Patterns
 GREET_RE = re.compile(r"\b(hi|hello|hey|hii|helo|howdy|sup|whats up|what's up)\b", re.IGNORECASE)
-PRODUCT_RE = re.compile(r"\b(product|products|show|buy|item|items|shop|sell|selling|available|catalog|collection|tshirt|shirt|tee)\b", re.IGNORECASE)
+PRODUCT_RE = re.compile(r"\b(product|products|show|buy|item|items|shop|sell|selling|catalog|collection|tshirt|shirt|tee)\b", re.IGNORECASE)
 PRICE_RE = re.compile(r"\b(price|prices|cost|how much|rate|rates|charge|charges|affordable|cheap|expensive)\b", re.IGNORECASE)
 ORDER_RE = re.compile(r"\b(order|orders|track|tracking|delivery|shipping|dispatch|shipped|delivered|status|where is my)\b", re.IGNORECASE)
 COLOR_RE = re.compile(r"\b(black|blue|green|grey|gray|white|red|yellow|brown|coffee|navy)\b", re.IGNORECASE)
