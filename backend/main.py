@@ -29,8 +29,8 @@ class ChatRequest(BaseModel):
     waiting_confirmation: Optional[str] = None
 
 # Regex Patterns
-GREET_RE = re.compile(r"\b(hi|hello|hey|hii|helo|howdy|sup|whats up|what's up)\b", re.IGNORECASE)
-PRODUCT_RE = re.compile(r"\b(product|products|show|buy|item|items|shop|sell|selling|catalog|collection|tshirt|shirt|tee)\b", re.IGNORECASE)
+GREET_RE = re.compile(r"\b(hi|hello|hey|hii|helo|howdy|whats up|what's up)\b", re.IGNORECASE)
+PRODUCT_RE = re.compile(r"\b(product|products|buy|item|items|shop|sell|selling|catalog|collection|tshirt|shirt|tee)\b", re.IGNORECASE)
 PRICE_RE = re.compile(r"\b(price|prices|cost|how much|rate|rates|charge|charges|affordable|cheap|expensive)\b", re.IGNORECASE)
 ORDER_RE = re.compile(r"\b(order|orders|track|tracking|delivery|shipping|dispatch|shipped|delivered|status|where is my)\b", re.IGNORECASE)
 COLOR_RE = re.compile(r"\b(black|blue|green|grey|gray|white|red|yellow|brown|coffee|navy|lavender|marron|pink|sage)\b", re.IGNORECASE)
@@ -41,6 +41,17 @@ THANKS_RE = re.compile(r"\b(thank|thanks|thankyou|thank you|thx|ty)\b", re.IGNOR
 HELP_RE = re.compile(r"\b(help|support|assist|assistance|question|query)\b", re.IGNORECASE)
 YES_RE = re.compile(r"\b(yes|yeah|yep|sure|ok|okay|show|please|yup|haan|ha)\b", re.IGNORECASE)
 NO_RE = re.compile(r"\b(no|nope|nahi|nah|not now|later)\b", re.IGNORECASE)
+BYE_RE = re.compile(r"\b(bye|goodbye|see you|seeyou|cya|take care|tata|alvida)\b", re.IGNORECASE)
+MORNING_RE = re.compile(r"\b(good morning|good afternoon|good evening|good night|gm|gn)\b", re.IGNORECASE)
+HOW_ARE_YOU_RE = re.compile(r"\b(how are you|how r u|hru|how are u|you good|u good|how is it going)\b", re.IGNORECASE)
+NICE_RE = re.compile(r"\b(nice|great|awesome|cool|wow|amazing|excellent|perfect|wonderful|superb|loved it)\b", re.IGNORECASE)
+OK_RE = re.compile(r"\b(ok|okay|alright|alrite|fine|got it|gotit|understood|noted|kk)\b", re.IGNORECASE)
+YES_ONLY_RE = re.compile(r"^(yes|yeah|yep|yup|haan|ha|yess|yesss|ofcourse|of course|definitely|absolutely|sure|why not)$", re.IGNORECASE)
+NO_ONLY_RE = re.compile(r"^(no|nope|nahi|nah|na|noo|nooo|never|not really|not now)$", re.IGNORECASE)
+LOVE_RE = re.compile(r"\b(love|loving|i love|loved|like|liked|i like|fantastic|brilliant|outstanding)\b", re.IGNORECASE)
+BAD_RE = re.compile(r"\b(bad|worst|terrible|horrible|pathetic|useless|disappointed|disappointing|not good|not happy)\b", re.IGNORECASE)
+WHO_RE = re.compile(r"\b(who are you|what are you|are you a bot|are you human|are you ai|are you robot|who made you|who created you)\b", re.IGNORECASE)
+CONTACT_RE = re.compile(r"\b(contact|email|phone|call|reach|whatsapp|support|customer care|helpline)\b", re.IGNORECASE)
 
 def get_shopify_products(color=None):
     url = f"https://{SHOP}/admin/api/2024-01/products.json?limit=10"
@@ -134,7 +145,7 @@ def chat(req: ChatRequest):
             products = get_shopify_products()
             if products:
                 return {"type":"products","reply":"Here are all our products:","products":products}
-        return {"type":"text","reply":"Please type a color name like Black, Blue, Green, Grey, Coffee, Navy, Pink, Lavender etc."}
+        return {"type":"text","reply":"Please type a color name like Black, Blue, Green, Grey, Coffee, Navy, Pink, Lavender, Sage, Marron etc."}
 
     # Handle confirmation — show single product
     if req.waiting_confirmation and req.waiting_confirmation.startswith("show_single_product_"):
@@ -148,7 +159,19 @@ def chat(req: ChatRequest):
 
     # Greeting
     if GREET_RE.search(msg):
-        return {"type":"text","reply":"Hello! I can help you with:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns\n\nWhat do you need?"}
+        return {"type":"text","reply":"Hello! Welcome to our store!\n\nI can help you with:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns\n\nWhat do you need?"}
+
+    # Good morning / afternoon / evening
+    if MORNING_RE.search(msg):
+        return {"type":"text","reply":"Good day to you! Welcome to our store.\n\nI can help you with:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns\n\nWhat can I do for you today?"}
+
+    # How are you
+    if HOW_ARE_YOU_RE.search(msg):
+        return {"type":"text","reply":"I am doing great, thank you for asking!\n\nI am here to help you shop. What are you looking for today?"}
+
+    # Who are you
+    if WHO_RE.search(msg):
+        return {"type":"text","reply":"I am your Store Assistant! I am an AI chatbot here to help you shop.\n\nI can help you with products, prices, orders and more!"}
 
     # Color + product search
     color_match = COLOR_RE.search(msg)
@@ -227,6 +250,38 @@ def chat(req: ChatRequest):
     # Size
     if SIZE_RE.search(msg):
         return {"type":"text","reply":"Our tshirts are available in sizes S, M, L, XL and XXL.\n\nType a color name to see a specific product or ask me to show all products!"}
+
+    # Contact
+    if CONTACT_RE.search(msg):
+        return {"type":"text","reply":"You can reach us here:\n\nEmail: support@ai-chatbot-lab.com\nWhatsApp: +91 XXXXXXXXXX\nTiming: Mon-Sat, 10am to 6pm\n\nWe will get back to you within 24 hours!"}
+
+    # Love / Like
+    if LOVE_RE.search(msg):
+        return {"type":"text","reply":"That is so sweet! We love our customers too!\n\nIs there anything else I can help you with today?"}
+
+    # Bad / Negative feedback
+    if BAD_RE.search(msg):
+        return {"type":"text","reply":"We are really sorry to hear that!\n\nPlease contact us at support@ai-chatbot-lab.com and we will make it right for you."}
+
+    # Nice / Great
+    if NICE_RE.search(msg):
+        return {"type":"text","reply":"Thank you so much! That means a lot to us.\n\nIs there anything else I can help you with?"}
+
+    # OK
+    if OK_RE.search(msg):
+        return {"type":"text","reply":"Sure! Let me know if you need anything.\n\nYou can ask me about products, prices or orders anytime!"}
+
+    # Yes only
+    if YES_ONLY_RE.search(msg):
+        return {"type":"text","reply":"Great! What would you like to know?\n\nYou can ask me about:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns"}
+
+    # No only
+    if NO_ONLY_RE.search(msg):
+        return {"type":"text","reply":"No problem! Feel free to ask me anything anytime.\n\nHave a great day!"}
+
+    # Bye
+    if BYE_RE.search(msg):
+        return {"type":"text","reply":"Goodbye! Thank you for visiting our store.\n\nHave a great day! Come back soon!"}
 
     # Fallback
     return {"type":"text","reply":"I am not sure I understand.\n\nYou can ask me about:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns"}
