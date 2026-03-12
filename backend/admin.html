@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot Admin Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+    body { background: #f1f5f9; min-height: 100vh; }
+    .header { background: #6366f1; color: #fff; padding: 20px 32px; display: flex; align-items: center; gap: 12px; }
+    .header h1 { font-size: 20px; font-weight: 800; }
+    .header span { font-size: 13px; opacity: 0.8; }
+    .container { max-width: 900px; margin: 32px auto; padding: 0 16px; display: grid; gap: 20px; }
+    .card { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .card h2 { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    input[type="text"], textarea { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 13px; outline: none; color: #334155; margin-bottom: 12px; }
+    input[type="text"]:focus, textarea:focus { border-color: #6366f1; }
+    textarea { height: 80px; resize: none; }
+    button { background: #6366f1; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.danger { background: #ef4444; }
+    button.secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .result { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; font-size: 13px; color: #334155; line-height: 1.6; margin-top: 12px; white-space: pre-wrap; }
+    .result.success { background: #f0fdf4; border-color: #86efac; color: #166534; }
+    .result.error { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+    .url-list { display: flex; flex-direction: column; gap: 8px; }
+    .url-item { display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+    .url-item span { font-size: 12px; color: #475569; }
+    .url-item button { padding: 4px 10px; font-size: 11px; }
+    .loading { display: inline-block; width: 16px; height: 16px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+    .stat { background: #f8fafc; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e2e8f0; }
+    .stat-value { font-size: 24px; font-weight: 800; color: #6366f1; }
+    .stat-label { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .chat-messages { height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 12px; }
+    .msg-bot { align-self: flex-start; background: #fff; color: #334155; padding: 8px 12px; border-radius: 10px; max-width: 80%; font-size: 13px; line-height: 1.5; border: 1px solid #f0f0f0; }
+    .msg-user { align-self: flex-end; background: #6366f1; color: #fff; padding: 8px 12px; border-radius: 10px; max-width: 80%; font-size: 13px; line-height: 1.5; }
+    .input-row { display: flex; gap: 8px; }
+    .input-row input { margin-bottom: 0; flex: 1; }
+    .badge { display: inline-block; background: #ede9fe; color: #6366f1; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🤖 Chatbot Admin Panel</h1>
+    <span>Train your chatbot on any website</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" id="stat-urls">0</div>
+      <div class="stat-label">Trained URLs</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="stat-chunks">0</div>
+      <div class="stat-label">Total Chunks</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="stat-status">✅</div>
+      <div class="stat-label">API Status</div>
+    </div>
+  </div>
+
+  <!-- Scrape Section -->
+  <div class="card">
+    <h2>🌐 Train on Website <span class="badge">Step 1</span></h2>
+    <input type="text" id="scrape-url" placeholder="Enter any website URL e.g. https://example.com/about" />
+    <div style="display:flex;gap:8px">
+      <button onclick="scrapeURL()" id="scrape-btn">Scrape & Train</button>
+      <button class="secondary" onclick="scrapeMultiple()">Scrape Multiple Pages</button>
+    </div>
+    <div id="scrape-result"></div>
+  </div>
+
+  <!-- Trained URLs -->
+  <div class="card">
+    <h2>📚 Trained URLs</h2>
+    <div class="url-list" id="url-list">
+      <div style="font-size:13px;color:#94a3b8">No URLs trained yet. Add a URL above to get started.</div>
+    </div>
+  </div>
+
+  <!-- Test Section -->
+  <div class="card">
+    <h2>💬 Test Your Chatbot <span class="badge">Step 2</span></h2>
+    <div class="chat-messages" id="chat-messages">
+      <div class="msg-bot">Hi! Ask me anything about the websites I have been trained on.</div>
+    </div>
+    <div class="input-row">
+      <input type="text" id="chat-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter') sendQuestion()" />
+      <button onclick="sendQuestion()">Ask</button>
+    </div>
+  </div>
+
+  <!-- Bulk Scrape -->
+  <div class="card">
+    <h2>📋 Bulk Scrape URLs</h2>
+    <textarea id="bulk-urls" placeholder="Enter multiple URLs, one per line:&#10;https://example.com/about&#10;https://example.com/faq&#10;https://example.com/contact"></textarea>
+    <button onclick="bulkScrape()">Scrape All URLs</button>
+    <div id="bulk-result"></div>
+  </div>
+
+</div>
+
+<script>
+  const API_URL = "https://shopify-ai-chatbot-production-0c5c.up.railway.app";
+
+  // Load stats on page load
+  window.onload = function() {
+    checkStatus();
+    loadURLs();
+  };
+
+  function checkStatus() {
+    fetch(API_URL + "/")
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById("stat-status").textContent = "✅";
+      })
+      .catch(() => {
+        document.getElementById("stat-status").textContent = "❌";
+      });
+  }
+
+  function loadURLs() {
+    fetch(API_URL + "/trained-urls")
+      .then(r => r.json())
+      .then(data => {
+        const urls = data.urls || [];
+        document.getElementById("stat-urls").textContent = urls.length;
+        const list = document.getElementById("url-list");
+        if (urls.length === 0) {
+          list.innerHTML = "<div style='font-size:13px;color:#94a3b8'>No URLs trained yet.</div>";
+          return;
+        }
+        list.innerHTML = urls.map(url => `
+          <div class='url-item'>
+            <span>🔗 ${url}</span>
+            <button class='danger' onclick='deleteURL("${url}")'>Remove</button>
+          </div>
+        `).join("");
+      })
+      .catch(() => {});
+  }
+
+  function scrapeURL() {
+    const url = document.getElementById("scrape-url").value.trim();
+    if (!url) { alert("Please enter a URL"); return; }
+
+    const btn = document.getElementById("scrape-btn");
+    btn.innerHTML = "<span class='loading'></span>Scraping...";
+    btn.disabled = true;
+
+    fetch(API_URL + "/scrape", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({url: url})
+    })
+    .then(r => r.json())
+    .then(data => {
+      const result = document.getElementById("scrape-result");
+      if (data.success) {
+        result.className = "result success";
+        result.textContent = "✅ " + data.message + "\nChunks stored: " + data.chunks;
+        document.getElementById("scrape-url").value = "";
+        loadURLs();
+        updateChunkStats(data.chunks);
+      } else {
+        result.className = "result error";
+        result.textContent = "❌ " + data.message;
+      }
+    })
+    .catch(() => {
+      document.getElementById("scrape-result").className = "result error";
+      document.getElementById("scrape-result").textContent = "❌ Failed to connect to API";
+    })
+    .finally(() => {
+      btn.innerHTML = "Scrape & Train";
+      btn.disabled = false;
+    });
+  }
+
+  function updateChunkStats(newChunks) {
+    const current = parseInt(document.getElementById("stat-chunks").textContent) || 0;
+    document.getElementById("stat-chunks").textContent = current + newChunks;
+  }
+
+  function deleteURL(url) {
+    if (!confirm("Remove this URL from training data?")) return;
+    fetch(API_URL + "/delete-url", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({url: url})
+    })
+    .then(r => r.json())
+    .then(() => loadURLs())
+    .catch(() => alert("Could not remove URL"));
+  }
+
+  function sendQuestion() {
+    const input = document.getElementById("chat-input");
+    const question = input.value.trim();
+    if (!question) return;
+
+    const container = document.getElementById("chat-messages");
+    container.innerHTML += "<div class='msg-user'>" + question + "</div>";
+    container.innerHTML += "<div class='msg-bot' id='typing'>Thinking...</div>";
+    container.scrollTop = container.scrollHeight;
+    input.value = "";
+
+    fetch(API_URL + "/ask", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({question: question})
+    })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById("typing").remove();
+      container.innerHTML += "<div class='msg-bot'>" + (data.answer || "Sorry, I could not find an answer.") + "</div>";
+      container.scrollTop = container.scrollHeight;
+    })
+    .catch(() => {
+      document.getElementById("typing").remove();
+      container.innerHTML += "<div class='msg-bot'>Sorry, something went wrong.</div>";
+      container.scrollTop = container.scrollHeight;
+    });
+  }
+
+  function bulkScrape() {
+    const urls = document.getElementById("bulk-urls").value.trim().split("\n").filter(u => u.trim());
+    if (urls.length === 0) { alert("Please enter at least one URL"); return; }
+
+    const result = document.getElementById("bulk-result");
+    result.className = "result";
+    result.textContent = "Scraping " + urls.length + " URLs...";
+
+    let completed = 0;
+    let success = 0;
+
+    urls.forEach(url => {
+      fetch(API_URL + "/scrape", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url: url.trim()})
+      })
+      .then(r => r.json())
+      .then(data => {
+        completed++;
+        if (data.success) success++;
+        result.textContent = "Progress: " + completed + "/" + urls.length + " | Success: " + success;
+        if (completed === urls.length) {
+          result.className = "result success";
+          result.textContent = "✅ Completed! " + success + "/" + urls.length + " URLs scraped successfully.";
+          loadURLs();
+        }
+      })
+      .catch(() => { completed++; });
+    });
+  }
+
+  function scrapeMultiple() {
+    const urls = [
+      "https://ai-chatbot-lab.myshopify.com/collections/all",
+      "https://ai-chatbot-lab.myshopify.com/pages/about",
+      "https://ai-chatbot-lab.myshopify.com/pages/contact"
+    ];
+    document.getElementById("bulk-urls").value = urls.join("\n");
+    document.querySelector(".card:nth-child(5)").scrollIntoView({behavior: "smooth"});
+  }
+</script>
+
+</body>
+</html>

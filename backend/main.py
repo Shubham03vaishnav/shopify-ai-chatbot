@@ -1,6 +1,7 @@
 import google.generativeai as genai
 from scraper import store_website_data, search_knowledge
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -114,6 +115,29 @@ def get_order_by_email(email):
 @app.get("/")
 def health_check():
     return {"status": "Chatbot API is running"}
+
+@app.get("/admin")
+def admin_panel():
+    return FileResponse("admin.html", media_type="text/html")
+
+@app.get("/trained-urls")
+def trained_urls():
+    from scraper import get_trained_urls, load_knowledge
+    knowledge = load_knowledge()
+    return {
+        "urls": get_trained_urls(),
+        "total_chunks": len(knowledge.get("chunks", []))
+    }
+
+@app.post("/delete-url")
+def delete_url(req: ScrapeRequest):
+    from scraper import load_knowledge, save_knowledge
+    knowledge = load_knowledge()
+    knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != req.url]
+    if req.url in knowledge["urls"]:
+        knowledge["urls"].remove(req.url)
+    save_knowledge(knowledge)
+    return {"success": True, "message": f"Removed {req.url}"}
 
 @app.post("/scrape")
 def scrape(req: ScrapeRequest):
