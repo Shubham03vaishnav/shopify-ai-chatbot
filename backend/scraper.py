@@ -5,8 +5,9 @@ import re
 import json
 import math
 
-KNOWLEDGE_FILE = "knowledge_base.json"
-PRODUCTS_FILE = "scraped_products.json"
+DATA_DIR = "/data" if os.path.exists("/data") else "."
+KNOWLEDGE_FILE = os.path.join(DATA_DIR, "knowledge_base.json")
+PRODUCTS_FILE = os.path.join(DATA_DIR, "scraped_products.json")
 
 def scrape_website(url):
     try:
