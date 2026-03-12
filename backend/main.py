@@ -186,6 +186,15 @@ def trained_urls():
         "urls": get_trained_urls(),
         "total_chunks": len(knowledge.get("chunks", []))
     }
+    
+@app.get("/scraped-products")
+def scraped_products():
+    from scraper import load_products
+    data = load_products()
+    return {
+        "total": len(data.get("products", [])),
+        "products": data.get("products", [])[:20]
+    }
 
 @app.post("/delete-url")
 def delete_url(req: ScrapeRequest):
