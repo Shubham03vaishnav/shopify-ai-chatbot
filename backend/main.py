@@ -1,3 +1,5 @@
+import google.generativeai as genai
+from scraper import store_website_data, search_knowledge
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -9,6 +11,13 @@ import re
 from dotenv import load_dotenv
 
 load_dotenv()
+
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_KEY:
+    genai.configure(api_key=GEMINI_KEY)
+    gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+else:
+    gemini_model = None
 
 app = FastAPI()
 
@@ -27,6 +36,12 @@ class ChatRequest(BaseModel):
     message: str
     waiting_email: Optional[bool] = False
     waiting_confirmation: Optional[str] = None
+
+class ScrapeRequest(BaseModel):
+    url: str
+
+class RAGRequest(BaseModel):
+    question: str
 
 # Regex Patterns
 GREET_RE = re.compile(r"\b(hi|hello|hey|hii|helo|howdy|whats up|what's up)\b", re.IGNORECASE)
@@ -99,6 +114,49 @@ def get_order_by_email(email):
 @app.get("/")
 def health_check():
     return {"status": "Chatbot API is running"}
+
+@app.post("/scrape")
+def scrape(req: ScrapeRequest):
+    """Train chatbot on a website URL"""
+    result = store_website_data(req.url)
+    return result
+
+@app.post("/ask")
+def ask(req: RAGRequest):
+    """Answer question using scraped website data + Gemini"""
+    question = req.question.strip()
+
+    if not question:
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    # Search relevant chunks
+    chunks = search_knowledge(question)
+
+    if not chunks:
+        return {"answer": "I don't have enough information to answer that. Please train me on a website first by using the /scrape endpoint."}
+
+    # Build context from chunks
+    context = "\n\n".join(chunks)
+
+    if gemini_model:
+        try:
+            prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
+If the answer is not in the context, say "I don't have that information right now."
+Keep your answer short, friendly and helpful.
+
+Context:
+{context}
+
+Customer Question: {question}
+
+Answer:"""
+            response = gemini_model.generate_content(prompt)
+            return {"answer": response.text}
+        except Exception as e:
+            print(f"Gemini error: {e}")
+            return {"answer": chunks[0]}
+    else:
+        return {"answer": chunks[0]}
 
 @app.get("/chatbot.js")
 def serve_chatbot():
@@ -283,5 +341,24 @@ def chat(req: ChatRequest):
     if BYE_RE.search(msg):
         return {"type":"text","reply":"Goodbye! Thank you for visiting our store.\n\nHave a great day! Come back soon!"}
 
-    # Fallback
+    # RAG Fallback — search scraped website data
+    chunks = search_knowledge(msg)
+    if chunks and gemini_model:
+        try:
+            context = "\n\n".join(chunks)
+            prompt = f"""You are a helpful store assistant. Answer the customer's question based only on the provided context.
+    If the answer is not in the context, say "I don't have that information right now."
+    Keep your answer short, friendly and helpful.
+
+    Context:
+    {context}
+
+    Customer Question: {msg}
+
+    Answer:"""
+            response = gemini_model.generate_content(prompt)
+            return {"type":"text","reply":response.text}
+        except Exception as e:
+            print(f"Gemini error: {e}")
+
     return {"type":"text","reply":"I am not sure I understand.\n\nYou can ask me about:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns"}
