@@ -197,10 +197,19 @@ Answer:"""
             print(f"Gemini error: {e}")
 
     # Free mode — extract clean sentences
-    raw = chunks[0]
-    sentences = [s.strip() for s in raw.replace("  ", " ").split(".") if len(s.strip()) > 40]
-    clean = ". ".join(sentences[:3]) + "."
-    return {"answer": clean}
+    all_text = " ".join(chunks)
+    sentences = [s.strip() for s in all_text.split(".") if len(s.strip()) > 60]
+    keywords = question.lower().split()
+    scored = []
+    for s in sentences:
+        score = sum(1 for k in keywords if k in s.lower())
+        scored.append((score, s))
+    scored.sort(reverse=True)
+    best = [s for score, s in scored[:3] if score > 0]
+    if best:
+        clean = ". ".join(best) + "."
+        return {"answer": clean}
+    return {"answer": "I found some information but could not summarize it clearly. Please visit our website for more details."}
 
 @app.get("/chatbot.js")
 def serve_chatbot():
@@ -406,9 +415,16 @@ def chat(req: ChatRequest):
             except Exception as e:
                 print(f"Gemini error: {e}")
         # Free mode — extract clean sentences from chunk
-        raw = chunks[0]
-        sentences = [s.strip() for s in raw.replace("  ", " ").split(".") if len(s.strip()) > 40]
-        clean = ". ".join(sentences[:3]) + "."
-        return {"type":"text","reply":clean}
-
-    return {"type":"text","reply":"I am not sure I understand.\n\nYou can ask me about:\n- Products\n- Prices\n- Order tracking\n- Discounts\n- Returns"}
+        all_text = " ".join(chunks)
+        sentences = [s.strip() for s in all_text.split(".") if len(s.strip()) > 60]
+        keywords = msg.lower().split()
+        scored = []
+        for s in sentences:
+            score = sum(1 for k in keywords if k in s.lower())
+            scored.append((score, s))
+        scored.sort(reverse=True)
+        best = [s for score, s in scored[:3] if score > 0]
+        if best:
+            clean = ". ".join(best) + "."
+            return {"type":"text","reply":clean}
+        return {"type":"text","reply":"I found some information but could not summarize it clearly. Please visit our website for more details."}
