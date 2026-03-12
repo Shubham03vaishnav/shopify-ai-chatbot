@@ -9,7 +9,7 @@ import re
 from dotenv import load_dotenv
 import google.generativeai as genai
 from groq import Groq
-from scraper import store_website_data, search_knowledge, get_trained_urls, load_knowledge, save_knowledge
+from scraper import store_website_data, search_knowledge, search_products, get_trained_urls, load_knowledge, save_knowledge
 
 load_dotenv()
 
@@ -434,7 +434,19 @@ def chat(req: ChatRequest):
     if BYE_RE.search(msg):
         return {"type":"text","reply":"Goodbye! Thank you for visiting our store.\n\nHave a great day! Come back soon!"}
 
-    # RAG Fallback — search scraped website data
+    # RAG Fallback — search scraped products first
+    scraped_products = search_products(msg)
+    if scraped_products:
+        chunks = search_knowledge(msg)
+        ai_reply = "Here are some products I found for you!"
+        if chunks:
+            context = "\n\n".join(chunks)
+            ai_answer = get_ai_answer(context, msg)
+            if ai_answer:
+                ai_reply = ai_answer
+        return {"type":"products","reply":ai_reply,"products":scraped_products}
+
+    # RAG Fallback — search scraped text
     chunks = search_knowledge(msg)
     if chunks:
         context = "\n\n".join(chunks)
