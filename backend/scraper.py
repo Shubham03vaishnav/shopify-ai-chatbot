@@ -1,19 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
-import chromadb
-from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 import os
 import re
+import json
+import numpy as np
 
-# Initialize
-model = SentenceTransformer("all-MiniLM-L6-v2")
-client = chromadb.PersistentClient(path="./chroma_db")
-
-def get_or_create_collection(name="website_data"):
-    try:
-        return client.get_collection(name)
-    except:
-        return client.create_collection(name)
+# Storage file
+KNOWLEDGE_FILE = "knowledge_base.json"
 
 def scrape_website(url):
     """Scrape all text from a website"""
@@ -22,11 +17,8 @@ def scrape_website(url):
         res = requests.get(url, headers=headers, timeout=10)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
-
-        # Remove unwanted tags
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
-
         text = soup.get_text(separator=" ", strip=True)
         text = re.sub(r'\s+', ' ', text).strip()
         return text
@@ -44,8 +36,20 @@ def chunk_text(text, chunk_size=500, overlap=50):
             chunks.append(chunk)
     return chunks
 
+def load_knowledge():
+    """Load knowledge base from file"""
+    if os.path.exists(KNOWLEDGE_FILE):
+        with open(KNOWLEDGE_FILE, "r") as f:
+            return json.load(f)
+    return {"chunks": [], "urls": []}
+
+def save_knowledge(data):
+    """Save knowledge base to file"""
+    with open(KNOWLEDGE_FILE, "w") as f:
+        json.dump(data, f)
+
 def store_website_data(url):
-    """Scrape and store website data in ChromaDB"""
+    """Scrape and store website data"""
     print(f"Scraping {url}...")
     text = scrape_website(url)
 
@@ -55,43 +59,53 @@ def store_website_data(url):
     chunks = chunk_text(text)
     print(f"Created {len(chunks)} chunks")
 
-    collection = get_or_create_collection()
+    knowledge = load_knowledge()
 
-    # Clear existing data for this URL
-    try:
-        existing = collection.get(where={"url": url})
-        if existing["ids"]:
-            collection.delete(where={"url": url})
-    except:
-        pass
+    # Remove old chunks for this URL
+    knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != url]
 
-    # Store chunks with embeddings
-    embeddings = model.encode(chunks).tolist()
-    ids = [f"{url}_{i}" for i in range(len(chunks))]
-    metadatas = [{"url": url, "chunk_index": i} for i in range(len(chunks))]
+    # Add new chunks
+    for i, chunk in enumerate(chunks):
+        knowledge["chunks"].append({
+            "text": chunk,
+            "url": url,
+            "index": i
+        })
 
-    collection.add(
-        embeddings=embeddings,
-        documents=chunks,
-        metadatas=metadatas,
-        ids=ids
-    )
+    if url not in knowledge["urls"]:
+        knowledge["urls"].append(url)
 
+    save_knowledge(knowledge)
     print(f"Stored {len(chunks)} chunks successfully!")
     return {"success": True, "chunks": len(chunks), "message": f"Successfully trained on {url}"}
 
 def search_knowledge(query, n_results=3):
-    """Search for relevant chunks based on query"""
+    """Search for relevant chunks using TF-IDF"""
     try:
-        collection = get_or_create_collection()
-        query_embedding = model.encode([query]).tolist()
-        results = collection.query(
-            query_embeddings=query_embedding,
-            n_results=n_results
-        )
-        if results["documents"] and results["documents"][0]:
-            return results["documents"][0]
-        return []
+        knowledge = load_knowledge()
+        chunks = knowledge.get("chunks", [])
+
+        if not chunks:
+            return []
+
+        texts = [c["text"] for c in chunks]
+
+        vectorizer = TfidfVectorizer(stop_words="english")
+        tfidf_matrix = vectorizer.fit_transform(texts + [query])
+
+        query_vector = tfidf_matrix[-1]
+        chunk_vectors = tfidf_matrix[:-1]
+
+        similarities = cosine_similarity(query_vector, chunk_vectors)[0]
+        top_indices = np.argsort(similarities)[::-1][:n_results]
+
+        results = [texts[i] for i in top_indices if similarities[i] > 0.1]
+        return results
     except Exception as e:
         print(f"Search error: {e}")
         return []
+
+def get_trained_urls():
+    """Get list of trained URLs"""
+    knowledge = load_knowledge()
+    return knowledge.get("urls", [])
