@@ -215,6 +215,20 @@ def test_gemini():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@app.get("/test-groq")
+def test_groq():
+    if not groq_client:
+        return {"status": "Groq not initialized", "key_exists": bool(GROQ_KEY)}
+    try:
+        response = groq_client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": "Say hello in one sentence"}],
+            max_tokens=50
+        )
+        return {"status": "working", "response": response.choices[0].message.content}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 @app.get("/chatbot.js")
 def serve_chatbot():
     return FileResponse("chatbot.js", media_type="application/javascript")
