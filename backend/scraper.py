@@ -1,17 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import os
 import re
 import json
-import numpy as np
+import math
 
-# Storage file
 KNOWLEDGE_FILE = "knowledge_base.json"
 
 def scrape_website(url):
-    """Scrape all text from a website"""
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         res = requests.get(url, headers=headers, timeout=10)
@@ -27,7 +23,6 @@ def scrape_website(url):
         return None
 
 def chunk_text(text, chunk_size=500, overlap=50):
-    """Split text into overlapping chunks"""
     words = text.split()
     chunks = []
     for i in range(0, len(words), chunk_size - overlap):
@@ -37,75 +32,64 @@ def chunk_text(text, chunk_size=500, overlap=50):
     return chunks
 
 def load_knowledge():
-    """Load knowledge base from file"""
     if os.path.exists(KNOWLEDGE_FILE):
         with open(KNOWLEDGE_FILE, "r") as f:
             return json.load(f)
     return {"chunks": [], "urls": []}
 
 def save_knowledge(data):
-    """Save knowledge base to file"""
     with open(KNOWLEDGE_FILE, "w") as f:
         json.dump(data, f)
 
 def store_website_data(url):
-    """Scrape and store website data"""
     print(f"Scraping {url}...")
     text = scrape_website(url)
-
     if not text:
         return {"success": False, "message": "Could not scrape website"}
-
     chunks = chunk_text(text)
     print(f"Created {len(chunks)} chunks")
-
     knowledge = load_knowledge()
-
-    # Remove old chunks for this URL
     knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != url]
-
-    # Add new chunks
     for i, chunk in enumerate(chunks):
-        knowledge["chunks"].append({
-            "text": chunk,
-            "url": url,
-            "index": i
-        })
-
+        knowledge["chunks"].append({"text": chunk, "url": url, "index": i})
     if url not in knowledge["urls"]:
         knowledge["urls"].append(url)
-
     save_knowledge(knowledge)
-    print(f"Stored {len(chunks)} chunks successfully!")
     return {"success": True, "chunks": len(chunks), "message": f"Successfully trained on {url}"}
 
+def tokenize(text):
+    return re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
+
+def compute_tfidf(query_tokens, doc_tokens, all_docs_tokens):
+    scores = {}
+    total_docs = len(all_docs_tokens)
+    for token in query_tokens:
+        tf = doc_tokens.count(token) / (len(doc_tokens) + 1)
+        docs_with_token = sum(1 for d in all_docs_tokens if token in d)
+        idf = math.log((total_docs + 1) / (docs_with_token + 1)) + 1
+        scores[token] = tf * idf
+    return sum(scores.values())
+
 def search_knowledge(query, n_results=3):
-    """Search for relevant chunks using TF-IDF"""
     try:
         knowledge = load_knowledge()
         chunks = knowledge.get("chunks", [])
-
         if not chunks:
             return []
-
         texts = [c["text"] for c in chunks]
-
-        vectorizer = TfidfVectorizer(stop_words="english")
-        tfidf_matrix = vectorizer.fit_transform(texts + [query])
-
-        query_vector = tfidf_matrix[-1]
-        chunk_vectors = tfidf_matrix[:-1]
-
-        similarities = cosine_similarity(query_vector, chunk_vectors)[0]
-        top_indices = np.argsort(similarities)[::-1][:n_results]
-
-        results = [texts[i] for i in top_indices if similarities[i] > 0.1]
+        query_tokens = tokenize(query)
+        all_docs_tokens = [tokenize(t) for t in texts]
+        scored = []
+        for i, (text, doc_tokens) in enumerate(zip(texts, all_docs_tokens)):
+            score = compute_tfidf(query_tokens, doc_tokens, all_docs_tokens)
+            scored.append((score, text))
+        scored.sort(reverse=True)
+        results = [text for score, text in scored[:n_results] if score > 0]
         return results
     except Exception as e:
         print(f"Search error: {e}")
         return []
 
 def get_trained_urls():
-    """Get list of trained URLs"""
     knowledge = load_knowledge()
     return knowledge.get("urls", [])
