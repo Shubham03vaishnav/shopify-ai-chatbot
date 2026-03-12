@@ -31,6 +31,7 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [waitingEmail, setWaitingEmail] = useState(false);
+  const [waitingConfirmation, setWaitingConfirmation] = useState(null);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -50,16 +51,20 @@ export default function ChatWidget() {
     setInput("");
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/chat`, {message:userMsg, waiting_email:waitingEmail});
+      const res = await axios.post(`${API_URL}/chat`, {message:userMsg, waiting_email:waitingEmail, waiting_confirmation:waitingConfirmation});
       if (res.data.type === "products") {
         setMessages(prev => [...prev, {from:"bot",text:res.data.reply,type:"products",products:res.data.products}]);
       } else if (res.data.type === "order") {
         setMessages(prev => [...prev, {from:"bot",text:res.data.reply,type:"order",order:res.data.order}]);
+      } else if (res.data.type === "confirm") {
+        setWaitingConfirmation(res.data.confirm_action);
+        setMessages(prev => [...prev, {from:"bot", text:res.data.reply}]);
       } else if (res.data.type === "ask_email") {
         setWaitingEmail(true);
         setMessages(prev => [...prev, {from:"bot",text:res.data.reply}]);
       } else {
         setWaitingEmail(false);
+        setWaitingConfirmation(null);
         setMessages(prev => [...prev, {from:"bot",text:res.data.reply}]);
       }
     } catch {

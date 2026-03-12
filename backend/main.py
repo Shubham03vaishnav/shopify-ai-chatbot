@@ -26,6 +26,7 @@ TOKEN = os.getenv("SHOPIFY_TOKEN")
 class ChatRequest(BaseModel):
     message: str
     waiting_email: Optional[bool] = False
+    waiting_confirmation: Optional[str] = None
 
 # ✅ Regex Patterns
 GREET_RE = re.compile(r"\b(hi|hello|hey|hii|helo|howdy|sup|whats up|what's up)\b", re.IGNORECASE)
@@ -33,7 +34,7 @@ PRODUCT_RE = re.compile(r"\b(product|products|show|buy|item|items|shop|sell|sell
 PRICE_RE = re.compile(r"\b(price|prices|cost|how much|rate|rates|charge|charges|affordable|cheap|expensive)\b", re.IGNORECASE)
 ORDER_RE = re.compile(r"\b(order|orders|track|tracking|delivery|shipping|dispatch|shipped|delivered|status|where is my)\b", re.IGNORECASE)
 COLOR_RE = re.compile(r"\b(black|blue|green|grey|gray|white|red|yellow|brown|coffee|navy)\b", re.IGNORECASE)
-SIZE_RE = re.compile(r"\b(small|medium|large|xl|xxl|xs|s\b|m\b|l\b|size)\b", re.IGNORECASE)
+SIZE_RE = re.compile(r"\b(small|medium|large|xl|xxl|xs|size|sizing|fit|fitting)\b", re.IGNORECASE)
 DISCOUNT_RE = re.compile(r"\b(discount|offer|coupon|promo|deal|sale|off|code)\b", re.IGNORECASE)
 RETURN_RE = re.compile(r"\b(return|refund|exchange|replace|replacement|money back)\b", re.IGNORECASE)
 THANKS_RE = re.compile(r"\b(thank|thanks|thankyou|thank you|thx|ty)\b", re.IGNORECASE)
@@ -136,12 +137,32 @@ def chat(req: ChatRequest):
     if PRICE_RE.search(msg):
         products = get_shopify_products()
         if products:
-            return {"type":"products","reply":"Here are our products with prices:","products":products}
+            lines = [f"• {p['title']} — Rs. {p['price']}" for p in products]
+            return {
+                "type": "confirm",
+                "reply": "Here are our current prices:\n" + "\n".join(lines) + "\n\nWould you like to see the products?",
+                "confirm_action": "show_products"
+            }
         return {"type":"text","reply":"Please visit our store to see current prices!"}
+
+    if req.waiting_confirmation == "show_products":
+        YES_RE = re.compile(r"\b(yes|yeah|yep|sure|ok|okay|show|please|yup|haan|ha)\b", re.IGNORECASE)
+        NO_RE = re.compile(r"\b(no|nope|nahi|nah|not now|later)\b", re.IGNORECASE)
+        if YES_RE.search(msg):
+            products = get_shopify_products()
+            if products:
+                return {"type":"products","reply":"Here are our products:","products":products}
+        if NO_RE.search(msg):
+            return {"type":"text","reply":"No problem! Let me know if you need anything else."}    
 
     # Order tracking
     if ORDER_RE.search(msg):
-        return {"type":"ask_email","reply":"Please enter the email address you used when placing your order."}
+        if "@" in msg:
+            order = get_order_by_email(msg)
+            if order:
+                return {"type":"order","reply":"Found your order! Here are the details:","order":order}
+            return {"type":"text","reply":"Sorry, no orders found for that email. Please check and try again."}
+        return {"type":"ask_email","reply":"Sure! I can help you track your order. Could you please share the email address you used while placing the order?"}
 
     # Discount
     if DISCOUNT_RE.search(msg):
@@ -149,8 +170,8 @@ def chat(req: ChatRequest):
 
     # Returns
     if RETURN_RE.search(msg):
-        return {"type":"text","reply":"We have a 7-day return policy. If you are not satisfied with your purchase, contact us at support@ai-chatbot-lab.com and we will help you out!"}
-
+        return {"type":"text","reply":"No worries! We have a hassle-free 7-day return policy.\n\nHere is how it works:\n1. Contact us within 7 days of delivery\n2. Item must be unused and in original packaging\n3. We will arrange a pickup\n4. Refund processed in 3-5 business days\n\nNeed help? Email us at support@ai-chatbot-lab.com"}
+    
     # Thanks
     if THANKS_RE.search(msg):
         return {"type":"text","reply":"You are welcome! Is there anything else I can help you with?"}
