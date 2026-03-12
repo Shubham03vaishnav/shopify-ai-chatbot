@@ -145,7 +145,7 @@ def chat(req: ChatRequest):
 
     # Discount
     if DISCOUNT_RE.search(msg):
-        return {"type":"text","reply":"We currently have special offers on selected items! Type 'show products' to see our latest collection with prices."}
+        return {"type":"text","reply":"We currently have special offers on selected items! Ask me to show our collection to see the latest prices."}
 
     # Returns
     if RETURN_RE.search(msg):
