@@ -116,6 +116,15 @@ def get_order_by_email(email):
 def health_check():
     return {"status": "Chatbot API is running"}
 
+@app.get("/list-models")
+def list_models():
+    try:
+        models = genai.list_models()
+        available = [m.name for m in models if "generateContent" in m.supported_generation_methods]
+        return {"models": available}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/test-gemini")
 def test_gemini():
     if not gemini_model:
