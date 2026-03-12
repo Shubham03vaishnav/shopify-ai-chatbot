@@ -116,6 +116,16 @@ def get_order_by_email(email):
 def health_check():
     return {"status": "Chatbot API is running"}
 
+@app.get("/test-gemini")
+def test_gemini():
+    if not gemini_model:
+        return {"status": "Gemini not initialized", "key_exists": bool(GEMINI_KEY)}
+    try:
+        response = gemini_model.generate_content("Say hello in one sentence")
+        return {"status": "working", "response": response.text}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 @app.get("/admin")
 def admin_panel():
     return FileResponse("admin.html", media_type="text/html")
