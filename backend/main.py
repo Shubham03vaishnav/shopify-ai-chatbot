@@ -221,7 +221,7 @@ def test_groq():
         return {"status": "Groq not initialized", "key_exists": bool(GROQ_KEY)}
     try:
         response = groq_client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": "Say hello in one sentence"}],
             max_tokens=50
         )
