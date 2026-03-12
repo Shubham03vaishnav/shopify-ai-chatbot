@@ -1,5 +1,5 @@
 import google.generativeai as genai
-from scraper import store_website_data, search_knowledge
+from scraper import store_website_data, search_knowledge, get_trained_urls, load_knowledge, save_knowledge
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -122,7 +122,6 @@ def admin_panel():
 
 @app.get("/trained-urls")
 def trained_urls():
-    from scraper import get_trained_urls, load_knowledge
     knowledge = load_knowledge()
     return {
         "urls": get_trained_urls(),
@@ -131,7 +130,6 @@ def trained_urls():
 
 @app.post("/delete-url")
 def delete_url(req: ScrapeRequest):
-    from scraper import load_knowledge, save_knowledge
     knowledge = load_knowledge()
     knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != req.url]
     if req.url in knowledge["urls"]:
