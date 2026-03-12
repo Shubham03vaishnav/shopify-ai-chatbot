@@ -243,6 +243,20 @@ def ask(req: RAGRequest):
     question = req.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    # Search products first
+    scraped_products = search_products(question)
+    if scraped_products:
+        chunks = search_knowledge(question)
+        ai_reply = "Here are some products I found for you!"
+        if chunks:
+            context = "\n\n".join(chunks)
+            ai_answer = get_ai_answer(context, question)
+            if ai_answer:
+                ai_reply = ai_answer
+        return {"answer": ai_reply, "products": scraped_products}
+
+    # Search text chunks
     chunks = search_knowledge(question)
     if not chunks:
         return {"answer": "I don't have enough information to answer that. Please train me on a website first."}

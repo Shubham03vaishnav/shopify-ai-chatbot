@@ -34,12 +34,18 @@
     .stat { background: #f8fafc; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e2e8f0; }
     .stat-value { font-size: 24px; font-weight: 800; color: #6366f1; }
     .stat-label { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-    .chat-messages { height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 12px; }
-    .msg-bot { align-self: flex-start; background: #fff; color: #334155; padding: 8px 12px; border-radius: 10px; max-width: 80%; font-size: 13px; line-height: 1.5; border: 1px solid #f0f0f0; }
-    .msg-user { align-self: flex-end; background: #6366f1; color: #fff; padding: 8px 12px; border-radius: 10px; max-width: 80%; font-size: 13px; line-height: 1.5; }
+    .chat-messages { height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 12px; }
+    .msg-bot { align-self: flex-start; background: #fff; color: #334155; padding: 8px 12px; border-radius: 10px; max-width: 85%; font-size: 13px; line-height: 1.5; border: 1px solid #f0f0f0; }
+    .msg-user { align-self: flex-end; background: #6366f1; color: #fff; padding: 8px 12px; border-radius: 10px; max-width: 85%; font-size: 13px; line-height: 1.5; }
     .input-row { display: flex; gap: 8px; }
     .input-row input { margin-bottom: 0; flex: 1; }
     .badge { display: inline-block; background: #ede9fe; color: #6366f1; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+    .products-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+    .product-card { background: #fff; border-radius: 10px; padding: 10px; border: 1px solid #f0f0f0; width: 160px; flex-shrink: 0; }
+    .product-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 6px; }
+    .product-card .p-title { font-weight: 700; font-size: 11px; color: #1e293b; margin-bottom: 4px; line-height: 1.4; }
+    .product-card .p-price { color: #6366f1; font-weight: 700; font-size: 12px; margin-bottom: 8px; }
+    .product-card a { background: #6366f1; color: #fff; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-decoration: none; display: block; text-align: center; }
   </style>
 </head>
 <body>
@@ -72,10 +78,10 @@
   <!-- Scrape Section -->
   <div class="card">
     <h2>🌐 Train on Website <span class="badge">Step 1</span></h2>
-    <input type="text" id="scrape-url" placeholder="Enter any website URL e.g. https://example.com/about" />
+    <input type="text" id="scrape-url" placeholder="Enter any website URL e.g. https://example.com/products" />
     <div style="display:flex;gap:8px">
       <button onclick="scrapeURL()" id="scrape-btn">Scrape & Train</button>
-      <button class="secondary" onclick="scrapeMultiple()">Scrape Multiple Pages</button>
+      <button class="secondary" onclick="fillSampleURLs()">Sample URLs</button>
     </div>
     <div id="scrape-result"></div>
   </div>
@@ -95,7 +101,7 @@
       <div class="msg-bot">Hi! Ask me anything about the websites I have been trained on.</div>
     </div>
     <div class="input-row">
-      <input type="text" id="chat-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter') sendQuestion()" />
+      <input type="text" id="chat-input" placeholder="Ask a question or search for a product..." onkeydown="if(event.key==='Enter') sendQuestion()" />
       <button onclick="sendQuestion()">Ask</button>
     </div>
   </div>
@@ -103,7 +109,7 @@
   <!-- Bulk Scrape -->
   <div class="card">
     <h2>📋 Bulk Scrape URLs</h2>
-    <textarea id="bulk-urls" placeholder="Enter multiple URLs, one per line:&#10;https://example.com/about&#10;https://example.com/faq&#10;https://example.com/contact"></textarea>
+    <textarea id="bulk-urls" placeholder="Enter multiple URLs, one per line:&#10;https://example.com/about&#10;https://example.com/faq&#10;https://example.com/products"></textarea>
     <button onclick="bulkScrape()">Scrape All URLs</button>
     <div id="bulk-result"></div>
   </div>
@@ -113,7 +119,6 @@
 <script>
   const API_URL = "https://shopify-ai-chatbot-production-0c5c.up.railway.app";
 
-  // Load stats on page load
   window.onload = function() {
     checkStatus();
     loadURLs();
@@ -122,12 +127,8 @@
   function checkStatus() {
     fetch(API_URL + "/")
       .then(r => r.json())
-      .then(data => {
-        document.getElementById("stat-status").textContent = "✅";
-      })
-      .catch(() => {
-        document.getElementById("stat-status").textContent = "❌";
-      });
+      .then(() => { document.getElementById("stat-status").textContent = "✅"; })
+      .catch(() => { document.getElementById("stat-status").textContent = "❌"; });
   }
 
   function loadURLs() {
@@ -136,6 +137,7 @@
       .then(data => {
         const urls = data.urls || [];
         document.getElementById("stat-urls").textContent = urls.length;
+        document.getElementById("stat-chunks").textContent = data.total_chunks || 0;
         const list = document.getElementById("url-list");
         if (urls.length === 0) {
           list.innerHTML = "<div style='font-size:13px;color:#94a3b8'>No URLs trained yet.</div>";
@@ -154,11 +156,9 @@
   function scrapeURL() {
     const url = document.getElementById("scrape-url").value.trim();
     if (!url) { alert("Please enter a URL"); return; }
-
     const btn = document.getElementById("scrape-btn");
     btn.innerHTML = "<span class='loading'></span>Scraping...";
     btn.disabled = true;
-
     fetch(API_URL + "/scrape", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
@@ -169,10 +169,9 @@
       const result = document.getElementById("scrape-result");
       if (data.success) {
         result.className = "result success";
-        result.textContent = "✅ " + data.message + "\nChunks stored: " + data.chunks;
+        result.textContent = "✅ " + data.message + "\nChunks stored: " + data.chunks + "\nProducts found: " + (data.products_found || 0);
         document.getElementById("scrape-url").value = "";
         loadURLs();
-        updateChunkStats(data.chunks);
       } else {
         result.className = "result error";
         result.textContent = "❌ " + data.message;
@@ -186,11 +185,6 @@
       btn.innerHTML = "Scrape & Train";
       btn.disabled = false;
     });
-  }
-
-  function updateChunkStats(newChunks) {
-    const current = parseInt(document.getElementById("stat-chunks").textContent) || 0;
-    document.getElementById("stat-chunks").textContent = current + newChunks;
   }
 
   function deleteURL(url) {
@@ -209,7 +203,6 @@
     const input = document.getElementById("chat-input");
     const question = input.value.trim();
     if (!question) return;
-
     const container = document.getElementById("chat-messages");
     container.innerHTML += "<div class='msg-user'>" + question + "</div>";
     container.innerHTML += "<div class='msg-bot' id='typing'>Thinking...</div>";
@@ -224,11 +217,27 @@
     .then(r => r.json())
     .then(data => {
       document.getElementById("typing").remove();
-      container.innerHTML += "<div class='msg-bot'>" + (data.answer || "Sorry, I could not find an answer.") + "</div>";
+
+      if (data.products && data.products.length > 0) {
+        var html = "<div class='msg-bot'>" + (data.answer || "Here are some products I found!") + "</div>";
+        html += "<div class='products-row'>";
+        data.products.forEach(function(p) {
+          html += "<div class='product-card'>" +
+            (p.image ? "<img src='" + p.image + "' onerror='this.style.display=\"none\"'/>" : "") +
+            "<div class='p-title'>" + p.title + "</div>" +
+            "<div class='p-price'>" + p.price + "</div>" +
+            "<a href='" + p.url + "' target='_blank'>View Product</a>" +
+            "</div>";
+        });
+        html += "</div>";
+        container.innerHTML += html;
+      } else {
+        container.innerHTML += "<div class='msg-bot'>" + (data.answer || "Sorry, I could not find an answer.") + "</div>";
+      }
       container.scrollTop = container.scrollHeight;
     })
     .catch(() => {
-      document.getElementById("typing").remove();
+      document.getElementById("typing")?.remove();
       container.innerHTML += "<div class='msg-bot'>Sorry, something went wrong.</div>";
       container.scrollTop = container.scrollHeight;
     });
@@ -237,14 +246,11 @@
   function bulkScrape() {
     const urls = document.getElementById("bulk-urls").value.trim().split("\n").filter(u => u.trim());
     if (urls.length === 0) { alert("Please enter at least one URL"); return; }
-
     const result = document.getElementById("bulk-result");
     result.className = "result";
     result.textContent = "Scraping " + urls.length + " URLs...";
-
     let completed = 0;
     let success = 0;
-
     urls.forEach(url => {
       fetch(API_URL + "/scrape", {
         method: "POST",
@@ -266,14 +272,10 @@
     });
   }
 
-  function scrapeMultiple() {
-    const urls = [
-      "https://ai-chatbot-lab.myshopify.com/collections/all",
-      "https://ai-chatbot-lab.myshopify.com/pages/about",
-      "https://ai-chatbot-lab.myshopify.com/pages/contact"
-    ];
-    document.getElementById("bulk-urls").value = urls.join("\n");
-    document.querySelector(".card:nth-child(5)").scrollIntoView({behavior: "smooth"});
+  function fillSampleURLs() {
+    document.getElementById("bulk-urls").value =
+      "https://books.toscrape.com\nhttps://en.wikipedia.org/wiki/T-shirt\nhttps://2xnutrition.com";
+    document.querySelector(".card:last-child").scrollIntoView({behavior: "smooth"});
   }
 </script>
 
