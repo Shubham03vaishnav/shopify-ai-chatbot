@@ -231,9 +231,13 @@ def search_products(query, n_results=6):
             if score > 0:
                 scored.append((score, p))
         scored.sort(reverse=True)
-        return [p for score, p in scored[:n_results]]
+        results = [p for score, p in scored[:n_results]]
+        print(f"Search '{query}' found {len(results)} products from {len(scored)} scored")
+        return results
     except Exception as e:
         print(f"Product search error: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def tokenize(text):
