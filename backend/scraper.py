@@ -95,7 +95,7 @@ def extract_products(soup, base_url):
                     if price_match:
                         price = price_text
                         break
-             image = None
+            image = None
             img = card.select_one("img")
             if img:
                 image = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or img.get("data-srcset")
