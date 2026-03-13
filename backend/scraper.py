@@ -196,7 +196,7 @@ def search_knowledge(query, n_results=3):
         for i, (text, doc_tokens) in enumerate(zip(texts, all_docs_tokens)):
             score = compute_tfidf(query_tokens, doc_tokens, all_docs_tokens)
             scored.append((score, text))
-        scored.sort(reverse=True)
+        scored.sort(key=lambda x: x[0], reverse=True)
         results = [text for score, text in scored[:n_results] if score > 0]
         return results
     except Exception as e:
