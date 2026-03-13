@@ -173,7 +173,7 @@ Answer:"""
 
 @app.get("/")
 def health_check():
-    return {"status": "Chatbot API is running"}
+    return {"status": "Chatbot API is running v2"}
 
 @app.get("/admin")
 def admin_panel():
