@@ -104,17 +104,33 @@ def extract_products(soup, base_url):
                     image = "https:" + image
                 elif image and image.startswith("/"):
                     image = domain + image
+                # Fix partial domain in image URL
+                if image and not image.startswith("http"):
+                    image = "https://" + image.lstrip("/")
             url = None
-            a = card.select_one("a")
-            if a and a.get("href"):
-                href = a.get("href")
+            for a in card.find_all("a"):
+                href = a.get("href", "")
+                if not href:
+                    continue
+                # Skip video/media URLs
+                if any(x in href for x in [".mp4", ".mov", ".avi", "cdn/shop/videos", "bik.ai"]):
+                    continue
                 if href.startswith("http"):
                     url = href
                 elif href.startswith("/"):
                     url = domain + href
                 else:
                     url = domain + "/" + href
-            if title and len(title) > 3:
+                break
+
+            # Fix image URL if it's broken
+            if image and "athflex.com/cdn" in image and not image.startswith("https://www.athflex.com"):
+                image = "https://www." + image.split("athflex.com/")[-1].replace("athflex.com/", "athflex.com/")
+                image = "https://www.athflex.com/cdn/" + image.split("/cdn/")[-1] if "/cdn/" in image else image
+
+            # Skip fake products
+            fake_titles = ["featured products", "new arrivals", "best sellers", "sale", "view all", "shop all"]
+            if title and title.lower() not in fake_titles and len(title) > 5:
                 products.append({
                     "title": title,
                     "price": price or "Check website",
