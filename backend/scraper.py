@@ -109,8 +109,8 @@ def extract_products(soup, base_url):
                 if image and not image.startswith("http"):
                     image = "https://" + image.lstrip("/")
                 # Fix broken www.cdn URLs
-                if image and "//www.cdn/" in image:
-                    image = image.replace("//www.cdn/", f"//{urlparse(base_url).netloc}/cdn/")
+                if image and ("//www.cdn/" in image or "https://www.cdn/" in image):
+                    image = re.sub(r'https?://www\.cdn/', f'https://{urlparse(base_url).netloc}/cdn/', image)
             url = None
             for a in card.find_all("a"):
                 href = a.get("href", "")
