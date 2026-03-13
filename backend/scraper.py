@@ -230,7 +230,7 @@ def search_products(query, n_results=6):
                         score += 1
             if score > 0:
                 scored.append((score, p))
-        scored.sort(reverse=True)
+        scored.sort(key=lambda x: x[0], reverse=True)
         results = [p for score, p in scored[:n_results]]
         print(f"Search '{query}' found {len(results)} products from {len(scored)} scored")
         return results
