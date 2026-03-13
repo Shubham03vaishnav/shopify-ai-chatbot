@@ -112,16 +112,21 @@ def extract_products(soup, base_url):
                 href = a.get("href", "")
                 if not href:
                     continue
-                # Skip video/media URLs
-                if any(x in href for x in [".mp4", ".mov", ".avi", "cdn/shop/videos", "bik.ai"]):
+                # Skip video/media/external URLs
+                if any(x in href for x in [".mp4", ".mov", ".avi", "cdn/shop/videos", "bik.ai", "javascript"]):
                     continue
+                # Must be a product/collection page
+                full_href = ""
                 if href.startswith("http"):
-                    url = href
+                    full_href = href
                 elif href.startswith("/"):
-                    url = domain + href
+                    full_href = domain + href
                 else:
-                    url = domain + "/" + href
-                break
+                    full_href = domain + "/" + href
+                # Only accept internal links
+                if domain.replace("https://www.", "https://") in full_href or domain in full_href:
+                    url = full_href
+                    break
 
             # Fix image URL if it's broken
             if image and "athflex.com/cdn" in image and not image.startswith("https://www.athflex.com"):
@@ -129,8 +134,8 @@ def extract_products(soup, base_url):
                 image = "https://www.athflex.com/cdn/" + image.split("/cdn/")[-1] if "/cdn/" in image else image
 
             # Skip fake products
-            fake_titles = ["featured products", "new arrivals", "best sellers", "sale", "view all", "shop all"]
-            if title and title.lower() not in fake_titles and len(title) > 5:
+            fake_titles = ["featured products", "new arrivals", "best sellers", "sale", "view all", "shop all", "explore", "discover", "trending"]
+            if title and title.lower() not in fake_titles and len(title) > 5 and not title.lower().startswith("shop "):
                 products.append({
                     "title": title,
                     "price": price or "Check website",

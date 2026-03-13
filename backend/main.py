@@ -229,11 +229,20 @@ def debug_search(query: str):
 
 @app.post("/delete-url")
 def delete_url(req: ScrapeRequest):
+    # Remove from knowledge base
     knowledge = load_knowledge()
     knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != req.url]
     if req.url in knowledge["urls"]:
         knowledge["urls"].remove(req.url)
     save_knowledge(knowledge)
+
+    # Remove from products
+    prod_data = load_products()
+    prod_data["products"] = [p for p in prod_data["products"] if p.get("source_url") != req.url]
+    if req.url in prod_data.get("urls", []):
+        prod_data["urls"].remove(req.url)
+    save_products(prod_data)
+
     return {"success": True, "message": f"Removed {req.url}"}
 
 @app.get("/list-models")
