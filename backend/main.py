@@ -230,21 +230,22 @@ def debug_search(query: str):
 @app.post("/delete-url")
 def delete_url(req: ScrapeRequest):
     try:
+        from urllib.parse import urlparse
+        domain = urlparse(req.url).netloc
+
         # Remove from knowledge base
         knowledge = load_knowledge()
-        knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != req.url]
-        if req.url in knowledge.get("urls", []):
-            knowledge["urls"].remove(req.url)
+        knowledge["chunks"] = [c for c in knowledge["chunks"] if urlparse(c.get("url", "")).netloc != domain]
+        knowledge["urls"] = [u for u in knowledge.get("urls", []) if urlparse(u).netloc != domain]
         save_knowledge(knowledge)
 
         # Remove from products
         prod_data = load_products()
-        prod_data["products"] = [p for p in prod_data["products"] if p.get("source_url") != req.url]
-        if req.url in prod_data.get("urls", []):
-            prod_data["urls"].remove(req.url)
+        prod_data["products"] = [p for p in prod_data["products"] if urlparse(p.get("source_url", "")).netloc != domain]
+        prod_data["urls"] = [u for u in prod_data.get("urls", []) if urlparse(u).netloc != domain]
         save_products(prod_data)
 
-        return {"success": True, "message": f"Removed {req.url}"}
+        return {"success": True, "message": f"Removed all data for {domain}"}
     except Exception as e:
         print(f"Delete error: {e}")
         import traceback
