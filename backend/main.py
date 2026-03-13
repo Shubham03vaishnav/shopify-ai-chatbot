@@ -275,7 +275,8 @@ def serve_chatbot():
 
 @app.post("/scrape")
 def scrape(req: ScrapeRequest):
-    result = store_website_data(req.url)
+    max_pages = 10
+    result = store_website_data(req.url, max_pages=max_pages)
     return result
 
 @app.post("/ask")
