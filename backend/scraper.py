@@ -216,6 +216,9 @@ def search_products(query, n_results=6):
         keywords = [k for k in query_lower.split() if k not in stop_words and len(k) > 2]
         if not keywords:
             return products[:n_results]
+        # If user asks for all products
+        if "all" in query_lower and "product" in query_lower:
+            return products[:n_results]
         scored = []
         for p in products:
             title_lower = p["title"].lower()
