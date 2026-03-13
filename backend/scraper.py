@@ -95,47 +95,19 @@ def extract_products(soup, base_url):
                     if price_match:
                         price = price_text
                         break
-            image = None
+             image = None
             img = card.select_one("img")
             if img:
                 image = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or img.get("data-srcset")
                 if image and " " in image:
                     image = image.split(" ")[0]
-                if image and image.startswith("//"):
-                    image = "https:" + image
-                elif image and image.startswith("/"):
-                    image = domain + image
-                # Fix partial domain in image URL
-                if image and not image.startswith("http"):
-                    image = "https://" + image.lstrip("/")
-                # Fix broken www.cdn URLs
-                if image and ("//www.cdn/" in image or "https://www.cdn/" in image):
-                    image = re.sub(r'https?://www\.cdn/', f'https://{urlparse(base_url).netloc}/cdn/', image)
-            url = None
-            for a in card.find_all("a"):
-                href = a.get("href", "")
-                if not href:
-                    continue
-                # Skip video/media/external URLs
-                if any(x in href for x in [".mp4", ".mov", ".avi", "cdn/shop/videos", "bik.ai", "javascript"]):
-                    continue
-                # Must be a product/collection page
-                full_href = ""
-                if href.startswith("http"):
-                    full_href = href
-                elif href.startswith("/"):
-                    full_href = domain + href
-                else:
-                    full_href = domain + "/" + href
-                # Only accept internal links
-                if domain.replace("https://www.", "https://") in full_href or domain in full_href:
-                    url = full_href
-                    break
-
-            # Fix image URL if it's broken
-            if image and "athflex.com/cdn" in image and not image.startswith("https://www.athflex.com"):
-                image = "https://www." + image.split("athflex.com/")[-1].replace("athflex.com/", "athflex.com/")
-                image = "https://www.athflex.com/cdn/" + image.split("/cdn/")[-1] if "/cdn/" in image else image
+                if image:
+                    if image.startswith("//"):
+                        image = "https:" + image
+                    elif image.startswith("/"):
+                        image = domain + image
+                    elif not image.startswith("http"):
+                        image = domain + "/" + image
 
             # Skip fake products
             fake_titles = ["featured products", "new arrivals", "best sellers", "sale", "view all", "shop all", "explore", "discover", "trending", "choose options", "add to cart", "sold out", "quick view"]
