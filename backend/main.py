@@ -198,9 +198,16 @@ def scraped_products():
     
 @app.get("/test-search/{query}")
 def test_search(query: str):
-    from scraper import search_products
+    from scraper import search_products, load_products, PRODUCTS_FILE
+    all_products = load_products()
     products = search_products(query)
-    return {"query": query, "found": len(products), "products": products}
+    return {
+        "query": query,
+        "products_file_path": PRODUCTS_FILE,
+        "total_in_db": len(all_products.get("products", [])),
+        "found": len(products),
+        "products": products
+    }
 
 @app.post("/delete-url")
 def delete_url(req: ScrapeRequest):
