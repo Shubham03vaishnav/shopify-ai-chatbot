@@ -88,7 +88,8 @@ def extract_products(soup, base_url):
     fake_titles = {
         "featured products", "new arrivals", "best sellers", "sale",
         "view all", "shop all", "explore", "discover", "trending",
-        "choose options", "add to cart", "sold out", "quick view"
+        "choose options", "add to cart", "sold out", "quick view",
+        "color options", "size options", "select options", "more options"
     }
 
     for card in cards:
@@ -124,7 +125,11 @@ def extract_products(soup, base_url):
             image = None
             img = card.select_one("img")
             if img:
-                raw = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
+                raw = (img.get("src") or img.get("data-src") or
+                       img.get("data-lazy-src") or img.get("data-srcset") or
+                       img.get("srcset"))
+                if raw and " " in raw:
+                    raw = raw.split(" ")[0]
                 image = fix_image_url(raw, domain)
 
             # Get URL
