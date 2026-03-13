@@ -211,11 +211,23 @@ def search_products(query, n_results=6):
         if not products:
             return []
         query_lower = query.lower()
-        keywords = query_lower.split()
+        # Remove common words that don't help search
+        stop_words = {"show", "me", "the", "a", "an", "get", "find", "i", "want", "need", "buy", "some", "any"}
+        keywords = [k for k in query_lower.split() if k not in stop_words and len(k) > 2]
+        if not keywords:
+            return products[:n_results]
         scored = []
         for p in products:
             title_lower = p["title"].lower()
-            score = sum(1 for k in keywords if k in title_lower)
+            score = 0
+            for k in keywords:
+                # Partial match — "iso" matches "isomagic"
+                if k in title_lower:
+                    score += 2
+                # Check each word in title
+                for word in title_lower.split():
+                    if word.startswith(k) or k.startswith(word):
+                        score += 1
             if score > 0:
                 scored.append((score, p))
         scored.sort(reverse=True)
