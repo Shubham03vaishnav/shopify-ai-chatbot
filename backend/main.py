@@ -9,7 +9,7 @@ import re
 from dotenv import load_dotenv
 import google.generativeai as genai
 from groq import Groq
-from scraper import store_website_data, search_knowledge, search_products, get_trained_urls, load_knowledge, save_knowledge
+from scraper import store_website_data, search_knowledge, search_products, get_trained_urls, load_knowledge, save_knowledge, load_products, save_products
 
 load_dotenv()
 
@@ -229,21 +229,27 @@ def debug_search(query: str):
 
 @app.post("/delete-url")
 def delete_url(req: ScrapeRequest):
-    # Remove from knowledge base
-    knowledge = load_knowledge()
-    knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != req.url]
-    if req.url in knowledge["urls"]:
-        knowledge["urls"].remove(req.url)
-    save_knowledge(knowledge)
+    try:
+        # Remove from knowledge base
+        knowledge = load_knowledge()
+        knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != req.url]
+        if req.url in knowledge.get("urls", []):
+            knowledge["urls"].remove(req.url)
+        save_knowledge(knowledge)
 
-    # Remove from products
-    prod_data = load_products()
-    prod_data["products"] = [p for p in prod_data["products"] if p.get("source_url") != req.url]
-    if req.url in prod_data.get("urls", []):
-        prod_data["urls"].remove(req.url)
-    save_products(prod_data)
+        # Remove from products
+        prod_data = load_products()
+        prod_data["products"] = [p for p in prod_data["products"] if p.get("source_url") != req.url]
+        if req.url in prod_data.get("urls", []):
+            prod_data["urls"].remove(req.url)
+        save_products(prod_data)
 
-    return {"success": True, "message": f"Removed {req.url}"}
+        return {"success": True, "message": f"Removed {req.url}"}
+    except Exception as e:
+        print(f"Delete error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/list-models")
 def list_models():
