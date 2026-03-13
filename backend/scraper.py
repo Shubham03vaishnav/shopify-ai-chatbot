@@ -62,6 +62,7 @@ def extract_products(soup, base_url):
     """Try to extract product cards from any website"""
     products = []
     domain = get_domain(base_url)
+    parsed_base = urlparse(base_url)
     card_selectors = [
         "div[class*='product']",
         "div[class*='item']",
@@ -107,6 +108,9 @@ def extract_products(soup, base_url):
                 # Fix partial domain in image URL
                 if image and not image.startswith("http"):
                     image = "https://" + image.lstrip("/")
+                # Fix broken www.cdn URLs
+                if image and "//www.cdn/" in image:
+                    image = image.replace("//www.cdn/", f"//{urlparse(base_url).netloc}/cdn/")
             url = None
             for a in card.find_all("a"):
                 href = a.get("href", "")
@@ -134,7 +138,7 @@ def extract_products(soup, base_url):
                 image = "https://www.athflex.com/cdn/" + image.split("/cdn/")[-1] if "/cdn/" in image else image
 
             # Skip fake products
-            fake_titles = ["featured products", "new arrivals", "best sellers", "sale", "view all", "shop all", "explore", "discover", "trending"]
+            fake_titles = ["featured products", "new arrivals", "best sellers", "sale", "view all", "shop all", "explore", "discover", "trending", "choose options", "add to cart", "sold out", "quick view"]
             if title and title.lower() not in fake_titles and len(title) > 5 and not title.lower().startswith("shop "):
                 products.append({
                     "title": title,
