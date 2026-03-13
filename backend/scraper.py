@@ -17,20 +17,16 @@ def get_domain(url):
     return f"{parsed.scheme}://{parsed.netloc}"
 
 def get_internal_links(soup, base_url, domain):
-    """Get all internal links from a page, prioritizing product/collection pages"""
     links = set()
     for a in soup.find_all("a", href=True):
         href = a["href"]
         full_url = urljoin(base_url, href)
-        # Only internal links
         if not full_url.startswith(domain):
             continue
-        # Skip unwanted pages
         skip_patterns = ["login", "account", "cart", "checkout", "search", "blog", "cdn", "javascript", "#", ".pdf", ".jpg", ".png"]
         if any(p in full_url.lower() for p in skip_patterns):
             continue
         links.add(full_url)
-    # Sort — prioritize product/collection pages
     priority = []
     normal = []
     for link in links:
@@ -40,8 +36,22 @@ def get_internal_links(soup, base_url, domain):
             normal.append(link)
     return priority + normal
 
+def fix_image_url(image, domain):
+    """Fix image URL to be absolute"""
+    if not image:
+        return None
+    if " " in image:
+        image = image.split(" ")[0]
+    if image.startswith("//"):
+        return "https:" + image
+    elif image.startswith("/"):
+        return domain + image
+    elif image.startswith("http"):
+        return image
+    else:
+        return domain + "/" + image
+
 def scrape_page(url):
-    """Scrape a single page and return text + soup"""
     try:
         res = requests.get(url, headers=HEADERS, timeout=10)
         res.raise_for_status()
@@ -50,8 +60,6 @@ def scrape_page(url):
             tag.decompose()
         text = soup.get_text(separator=" ", strip=True)
         text = re.sub(r'\[\s*\d+\s*\]', '', text)
-        text = re.sub(r'\[\s*update\s*\]', '', text)
-        text = re.sub(r'\[\s*edit\s*\]', '', text)
         text = re.sub(r'\s+', ' ', text).strip()
         return text, soup
     except Exception as e:
@@ -59,10 +67,8 @@ def scrape_page(url):
         return None, None
 
 def extract_products(soup, base_url):
-    """Try to extract product cards from any website"""
     products = []
     domain = get_domain(base_url)
-    parsed_base = urlparse(base_url)
     card_selectors = [
         "div[class*='product']",
         "div[class*='item']",
@@ -78,16 +84,34 @@ def extract_products(soup, base_url):
         if len(found) >= 2:
             cards = found[:20]
             break
+
+    fake_titles = {
+        "featured products", "new arrivals", "best sellers", "sale",
+        "view all", "shop all", "explore", "discover", "trending",
+        "choose options", "add to cart", "sold out", "quick view"
+    }
+
     for card in cards:
         try:
+            # Get title
             title = None
-            for t in ["h1", "h2", "h3", "h4", "a[class*='title']", "p[class*='title']", "span[class*='title']", "div[class*='title']", "a[class*='name']", "div[class*='name']"]:
+            for t in ["h2", "h3", "h4", "a[class*='title']", "p[class*='title']",
+                      "span[class*='title']", "div[class*='title']", "a[class*='name']",
+                      "div[class*='name']", "h1"]:
                 el = card.select_one(t)
                 if el and len(el.get_text(strip=True)) > 3:
                     title = el.get_text(strip=True)
                     break
+
+            if not title or len(title) <= 5 or title.lower() in fake_titles:
+                continue
+            if title.lower().startswith("shop ") or title.lower().startswith("explore "):
+                continue
+
+            # Get price
             price = None
-            for p in ["span[class*='price']", "div[class*='price']", "p[class*='price']", "span[class*='amount']", "ins"]:
+            for p in ["span[class*='price']", "div[class*='price']",
+                      "p[class*='price']", "span[class*='amount']", "ins"]:
                 el = card.select_one(p)
                 if el:
                     price_text = el.get_text(strip=True)
@@ -95,31 +119,42 @@ def extract_products(soup, base_url):
                     if price_match:
                         price = price_text
                         break
+
+            # Get image
             image = None
             img = card.select_one("img")
             if img:
-                image = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or img.get("data-srcset")
-                if image and " " in image:
-                    image = image.split(" ")[0]
-                if image:
-                    if image.startswith("//"):
-                        image = "https:" + image
-                    elif image.startswith("/"):
-                        image = domain + image
-                    elif not image.startswith("http"):
-                        image = domain + "/" + image
+                raw = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
+                image = fix_image_url(raw, domain)
 
-            # Skip fake products
-            fake_titles = ["featured products", "new arrivals", "best sellers", "sale", "view all", "shop all", "explore", "discover", "trending", "choose options", "add to cart", "sold out", "quick view"]
-            if title and title.lower() not in fake_titles and len(title) > 5 and not title.lower().startswith("shop "):
-                products.append({
-                    "title": title,
-                    "price": price or "Check website",
-                    "image": image,
-                    "url": url or base_url
-                })
-        except Exception:
+            # Get URL
+            url = None
+            for a in card.find_all("a"):
+                href = a.get("href", "")
+                if not href:
+                    continue
+                if any(x in href for x in [".mp4", ".mov", ".avi", "cdn/shop/videos", "bik.ai", "javascript"]):
+                    continue
+                if href.startswith("http"):
+                    if domain.replace("https://www.", "https://") in href or domain in href:
+                        url = href
+                        break
+                elif href.startswith("/"):
+                    url = domain + href
+                    break
+
+            products.append({
+                "title": title,
+                "price": price or "Check website",
+                "image": image,
+                "url": url or base_url
+            })
+
+        except Exception as e:
+            print(f"Product extract error: {e}")
             continue
+
+    # Deduplicate
     seen = set()
     unique = []
     for p in products:
@@ -158,7 +193,6 @@ def save_products(data):
         json.dump(data, f)
 
 def store_website_data(url, max_pages=10):
-    """Crawl entire website up to max_pages"""
     domain = get_domain(url)
     visited = set()
     to_visit = [url]
@@ -181,19 +215,16 @@ def store_website_data(url, max_pages=10):
 
         pages_scraped += 1
 
-        # Extract products
         products = extract_products(soup, current_url)
         for p in products:
             p["source_url"] = url
             if p["title"] not in [ep["title"] for ep in all_products]:
                 all_products.append(p)
 
-        # Extract text chunks
         chunks = chunk_text(text)
         for i, chunk in enumerate(chunks):
             all_chunks.append({"text": chunk, "url": current_url, "index": i})
 
-        # Find more links to visit
         new_links = get_internal_links(soup, current_url, domain)
         for link in new_links:
             if link not in visited and link not in to_visit:
@@ -201,7 +232,6 @@ def store_website_data(url, max_pages=10):
 
     print(f"Crawl complete: {pages_scraped} pages, {len(all_products)} products, {len(all_chunks)} chunks")
 
-    # Save products
     prod_data = load_products()
     prod_data["products"] = [p for p in prod_data["products"] if p.get("source_url") != url]
     prod_data["products"].extend(all_products)
@@ -209,7 +239,6 @@ def store_website_data(url, max_pages=10):
         prod_data.setdefault("urls", []).append(url)
     save_products(prod_data)
 
-    # Save knowledge
     knowledge = load_knowledge()
     knowledge["chunks"] = [c for c in knowledge["chunks"] if c.get("url") != url]
     knowledge["chunks"].extend(all_chunks)
@@ -239,8 +268,7 @@ def search_knowledge(query, n_results=3):
             score = compute_tfidf(query_tokens, doc_tokens, all_docs_tokens)
             scored.append((score, text))
         scored.sort(key=lambda x: x[0], reverse=True)
-        results = [text for score, text in scored[:n_results] if score > 0]
-        return results
+        return [text for score, text in scored[:n_results] if score > 0]
     except Exception as e:
         print(f"Search error: {e}")
         return []
@@ -272,7 +300,7 @@ def search_products(query, n_results=6):
                 scored.append((score, p))
         scored.sort(key=lambda x: x[0], reverse=True)
         results = [p for score, p in scored[:n_results]]
-        print(f"Search '{query}' found {len(results)} products from {len(scored)} scored")
+        print(f"Search '{query}' found {len(results)} products")
         return results
     except Exception as e:
         print(f"Product search error: {e}")
