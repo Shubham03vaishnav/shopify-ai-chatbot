@@ -196,6 +196,21 @@ def scraped_products():
         "products": data.get("products", [])[:20]
     }
     
+@app.get("/debug-image")
+def debug_image():
+    import requests
+    from bs4 import BeautifulSoup
+    res = requests.get("https://www.athflex.com", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+    soup = BeautifulSoup(res.text, "html.parser")
+    imgs = []
+    for img in soup.find_all("img")[:10]:
+        imgs.append({
+            "src": img.get("src"),
+            "data-src": img.get("data-src"),
+            "data-lazy-src": img.get("data-lazy-src")
+        })
+    return {"images": imgs}
+    
 @app.get("/test-search/{query}")
 def test_search(query: str):
     from scraper import search_products, load_products, PRODUCTS_FILE
