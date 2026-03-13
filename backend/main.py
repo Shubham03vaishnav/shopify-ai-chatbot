@@ -208,6 +208,24 @@ def test_search(query: str):
         "found": len(products),
         "products": products
     }
+    
+@app.get("/debug-search/{query}")
+def debug_search(query: str):
+    from scraper import load_products
+    prod_data = load_products()
+    products = prod_data.get("products", [])
+    query_lower = query.lower()
+    stop_words = {"show", "me", "the", "a", "an", "get", "find", "i", "want", "need", "buy", "some", "any"}
+    keywords = [k for k in query_lower.split() if k not in stop_words and len(k) > 2]
+    results = []
+    for p in products:
+        title_lower = p["title"].lower()
+        score = 0
+        for k in keywords:
+            if k in title_lower:
+                score += 2
+        results.append({"title": p["title"], "score": score})
+    return {"keywords": keywords, "scores": results}
 
 @app.post("/delete-url")
 def delete_url(req: ScrapeRequest):
